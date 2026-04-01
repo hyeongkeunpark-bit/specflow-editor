@@ -46,7 +46,7 @@ const Index = () => {
   return (
     <div className="h-screen w-screen overflow-hidden bg-background flex relative">
       {/* Icon Sidebar */}
-      <div className="w-12 shrink-0 border-r bg-card flex flex-col items-center py-3 gap-1">
+      <aside className="relative z-40 w-12 shrink-0 border-r bg-card flex flex-col items-center py-3 gap-1">
         <SidebarButton
           icon={<FileText className="w-[18px] h-[18px]" />}
           label="Spec"
@@ -59,11 +59,11 @@ const Index = () => {
           active={activePanel === "code"}
           onClick={() => togglePanel("code")}
         />
-      </div>
+      </aside>
 
       {/* Overlay Side Panel */}
       <div
-        className={`absolute left-12 top-0 h-full w-[380px] z-30 border-r bg-background shadow-2xl shadow-black/40 transition-transform duration-250 ease-in-out ${
+        className={`absolute left-12 top-0 h-full w-[520px] z-30 border-r bg-background shadow-2xl shadow-black/40 transition-transform duration-250 ease-in-out ${
           activePanel ? "translate-x-0" : "-translate-x-full pointer-events-none"
         }`}
       >
