@@ -48,7 +48,9 @@ const HistoryPanel = ({ snapshots, onRestore }: HistoryPanelProps) => {
           </div>
         ) : (
           <div className="p-2 space-y-1">
-            {snapshots.map((snap, idx) => {
+            {[...snapshots].reverse().map((snap, reverseIdx) => {
+              const idx = snapshots.length - 1 - reverseIdx;
+              const version = idx + 1;
               const version = idx + 1;
               const isCurrent = idx === snapshots.length - 1;
               return (
