@@ -7,16 +7,18 @@ import {
 import ChatPanel, { ChatMessage } from "@/components/ChatPanel";
 import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
+import HistoryPanel, { Snapshot } from "@/components/HistoryPanel";
 import { generateDummyResponse } from "@/lib/dummyResponse";
-import { FileText, Code2, Copy, Download, ZoomIn, ZoomOut, Link } from "lucide-react";
+import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link } from "lucide-react";
 import { toast } from "sonner";
 
-type SidePanel = "spec" | "code" | null;
+type SidePanel = "spec" | "code" | "history" | null;
 
 const Index = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [specContent, setSpecContent] = useState("");
   const [htmlContent, setHtmlContent] = useState("");
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [activePanel, setActivePanel] = useState<SidePanel>(null);
 
   const handleSend = useCallback((text: string) => {
@@ -37,8 +39,20 @@ const Index = () => {
       setMessages((prev) => [...prev, aiMsg]);
       setSpecContent(response.spec);
       setHtmlContent(response.html);
+      setSnapshots((prev) => [
+        ...prev,
+        { spec: response.spec, html: response.html, timestamp: Date.now(), summary: text },
+      ]);
     }, 600);
   }, []);
+
+  const handleRestore = (index: number) => {
+    const snap = snapshots[index];
+    setSpecContent(snap.spec);
+    setHtmlContent(snap.html);
+    setSnapshots((prev) => prev.slice(0, index + 1));
+    toast.success(`v${index + 1}로 되돌렸습니다`);
+  };
 
   const togglePanel = (panel: SidePanel) => {
     setActivePanel((prev) => (prev === panel ? null : panel));
@@ -56,9 +70,15 @@ const Index = () => {
         />
         <SidebarButton
           icon={<Code2 className="w-[18px] h-[18px]" />}
-          label="Code"
+          label="Html"
           active={activePanel === "code"}
           onClick={() => togglePanel("code")}
+        />
+        <SidebarButton
+          icon={<History className="w-[18px] h-[18px]" />}
+          label="History"
+          active={activePanel === "history"}
+          onClick={() => togglePanel("history")}
         />
       </aside>
 
@@ -70,6 +90,7 @@ const Index = () => {
       >
         {activePanel === "spec" && <SpecPanel content={specContent} />}
         {activePanel === "code" && <CodeViewPanel htmlContent={htmlContent} />}
+        {activePanel === "history" && <HistoryPanel snapshots={snapshots} onRestore={handleRestore} />}
       </div>
 
       {/* Backdrop */}
