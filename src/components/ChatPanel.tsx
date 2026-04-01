@@ -50,6 +50,7 @@ const ChatPanel = ({
 }: ChatPanelProps) => {
   const [input, setInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
