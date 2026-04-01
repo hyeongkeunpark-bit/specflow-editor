@@ -41,7 +41,8 @@ const HistoryPanel = ({ snapshots, onRestore }: HistoryPanelProps) => {
 
       <div className="flex-1 overflow-y-auto">
         {snapshots.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <History className="w-10 h-10 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm text-center">
               아직 히스토리가 없습니다.<br />채팅에서 응답이 생성되면 기록됩니다.
             </p>
