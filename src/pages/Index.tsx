@@ -46,6 +46,14 @@ const Index = () => {
     }, 600);
   }, []);
 
+  const handleRestore = (index: number) => {
+    const snap = snapshots[index];
+    setSpecContent(snap.spec);
+    setHtmlContent(snap.html);
+    setSnapshots((prev) => prev.slice(0, index + 1));
+    toast.success(`v${index + 1}로 되돌렸습니다`);
+  };
+
   const togglePanel = (panel: SidePanel) => {
     setActivePanel((prev) => (prev === panel ? null : panel));
   };
@@ -62,9 +70,15 @@ const Index = () => {
         />
         <SidebarButton
           icon={<Code2 className="w-[18px] h-[18px]" />}
-          label="Code"
+          label="Html"
           active={activePanel === "code"}
           onClick={() => togglePanel("code")}
+        />
+        <SidebarButton
+          icon={<History className="w-[18px] h-[18px]" />}
+          label="History"
+          active={activePanel === "history"}
+          onClick={() => togglePanel("history")}
         />
       </aside>
 
