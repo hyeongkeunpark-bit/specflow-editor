@@ -51,7 +51,6 @@ const HistoryPanel = ({ snapshots, onRestore }: HistoryPanelProps) => {
             {[...snapshots].reverse().map((snap, reverseIdx) => {
               const idx = snapshots.length - 1 - reverseIdx;
               const version = idx + 1;
-              const version = idx + 1;
               const isCurrent = idx === snapshots.length - 1;
               return (
                 <div
