@@ -19,7 +19,7 @@ const Index = () => {
   const [specContent, setSpecContent] = useState("");
   const [htmlContent, setHtmlContent] = useState("");
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
-  const [activePanel, setActivePanel] = useState<SidePanel>(null);
+  const [activePanel, setActivePanel] = useState<SidePanel>("spec");
   const [isDark, setIsDark] = useState(true);
 
   const toggleTheme = () => {
