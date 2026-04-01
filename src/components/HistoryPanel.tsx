@@ -11,12 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export interface Snapshot {
-  spec: string;
-  html: string;
-  timestamp: number;
-  summary: string;
-}
+import type { Snapshot } from "@/lib/types";
 
 interface HistoryPanelProps {
   snapshots: Snapshot[];

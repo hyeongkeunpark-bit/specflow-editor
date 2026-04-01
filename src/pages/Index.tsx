@@ -1,26 +1,38 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import ChatPanel, { ChatMessage } from "@/components/ChatPanel";
+import ChatPanel from "@/components/ChatPanel";
 import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
-import HistoryPanel, { Snapshot } from "@/components/HistoryPanel";
+import HistoryPanel from "@/components/HistoryPanel";
+import { useSessionManager } from "@/hooks/useSessionManager";
 import { generateDummyResponse } from "@/lib/dummyResponse";
+import type { ChatMessage } from "@/lib/types";
 import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | "history" | null;
 
 const Index = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [specContent, setSpecContent] = useState("");
-  const [htmlContent, setHtmlContent] = useState("");
-  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const {
+    sessions,
+    activeSession,
+    activeSessionId,
+    setMessages,
+    setSpecContent,
+    setHtmlContent,
+    setSnapshots,
+    createNewSession,
+    switchSession,
+    deleteSession,
+  } = useSessionManager();
+
   const [activePanel, setActivePanel] = useState<SidePanel>("spec");
   const [isDark, setIsDark] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -28,33 +40,55 @@ const Index = () => {
     document.documentElement.classList.toggle("dark", next);
   };
 
-  const handleSend = useCallback((text: string) => {
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: text,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
-    setTimeout(() => {
-      const response = generateDummyResponse(text);
-      const aiMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "ai",
-        content: response.text,
+  const handleSend = useCallback(
+    (text: string) => {
+      const userMsg: ChatMessage = {
+        id: Date.now().toString(),
+        role: "user",
+        content: text,
       };
-      setMessages((prev) => [...prev, aiMsg]);
-      setSpecContent(response.spec);
-      setHtmlContent(response.html);
-      setSnapshots((prev) => [
-        ...prev,
-        { spec: response.spec, html: response.html, timestamp: Date.now(), summary: text },
-      ]);
-    }, 600);
-  }, []);
+      setMessages((prev) => [...prev, userMsg]);
+      setIsLoading(true);
+
+      setTimeout(() => {
+        const response = generateDummyResponse(text);
+        const aiMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "ai",
+          content: response.text,
+        };
+
+        const systemMessages: ChatMessage[] = [];
+        if (response.spec) {
+          systemMessages.push({
+            id: (Date.now() + 2).toString(),
+            role: "system",
+            content: "📝 Spec 업데이트됨",
+          });
+        }
+        if (response.html) {
+          systemMessages.push({
+            id: (Date.now() + 3).toString(),
+            role: "system",
+            content: "🖥️ Prototype 업데이트됨",
+          });
+        }
+
+        setMessages((prev) => [...prev, aiMsg, ...systemMessages]);
+        setSpecContent(response.spec);
+        setHtmlContent(response.html);
+        setSnapshots((prev) => [
+          ...prev,
+          { spec: response.spec, html: response.html, timestamp: Date.now(), summary: text },
+        ]);
+        setIsLoading(false);
+      }, 600);
+    },
+    [setMessages, setSpecContent, setHtmlContent, setSnapshots]
+  );
 
   const handleRestore = (index: number) => {
-    const snap = snapshots[index];
+    const snap = activeSession.snapshots[index];
     setSpecContent(snap.spec);
     setHtmlContent(snap.html);
     setSnapshots((prev) => prev.slice(0, index + 1));
@@ -99,9 +133,11 @@ const Index = () => {
       {/* Push Side Panel */}
       {activePanel && (
         <div className="h-full w-[40%] shrink-0 border-r bg-background">
-          {activePanel === "spec" && <SpecPanel content={specContent} />}
-          {activePanel === "code" && <CodeViewPanel htmlContent={htmlContent} />}
-          {activePanel === "history" && <HistoryPanel snapshots={snapshots} onRestore={handleRestore} />}
+          {activePanel === "spec" && <SpecPanel content={activeSession.specContent} />}
+          {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} />}
+          {activePanel === "history" && (
+            <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} />
+          )}
         </div>
       )}
 
@@ -109,13 +145,22 @@ const Index = () => {
       <div className="flex-1 min-w-0">
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={40} minSize={20} maxSize={60}>
-            <ChatPanel messages={messages} onSend={handleSend} />
+            <ChatPanel
+              messages={activeSession.messages}
+              onSend={handleSend}
+              isLoading={isLoading}
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onNewSession={createNewSession}
+              onSwitchSession={switchSession}
+              onDeleteSession={deleteSession}
+            />
           </ResizablePanel>
 
           <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
 
           <ResizablePanel defaultSize={60} minSize={30}>
-            <PrototypePanel htmlContent={htmlContent} />
+            <PrototypePanel htmlContent={activeSession.htmlContent} />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
@@ -175,18 +220,18 @@ function CodeViewPanel({ htmlContent }: { htmlContent: string }) {
         <div className="flex items-center gap-1">
           <button
             onClick={handleCopy}
-              className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
-              title="복사"
-            >
-              <Copy className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleDownload}
-              className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
-              title="다운로드 (.html)"
-            >
-              <Download className="w-3.5 h-3.5" />
-            </button>
+            className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+            title="복사"
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleDownload}
+            className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+            title="다운로드 (.html)"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
       <div className="flex-1 overflow-auto p-4">
