@@ -138,13 +138,6 @@ const ChatPanel = ({
           <div className="w-2 h-2 rounded-full bg-primary" />
           <h2 className="text-sm font-semibold text-panel-header-foreground">Chat</h2>
         </div>
-        <button
-          onClick={onNewSession}
-          className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
-          title="새 세션"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
       </div>
 
       {/* Messages */}
