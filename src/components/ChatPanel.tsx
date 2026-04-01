@@ -33,6 +33,7 @@ const ChatPanel = ({ messages, onSend }: ChatPanelProps) => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || isComposing) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
