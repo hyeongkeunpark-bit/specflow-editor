@@ -66,8 +66,6 @@ const Index = () => {
         className={`absolute left-12 top-0 h-full w-[520px] z-30 border-r bg-background shadow-2xl shadow-black/40 transition-transform duration-250 ease-in-out ${
           activePanel ? "translate-x-0" : "-translate-x-full pointer-events-none"
         }`}
-          activePanel ? "translate-x-0" : "-translate-x-full pointer-events-none"
-        }`}
       >
         {activePanel === "spec" && <SpecPanel content={specContent} />}
         {activePanel === "code" && <CodeViewPanel htmlContent={htmlContent} />}
