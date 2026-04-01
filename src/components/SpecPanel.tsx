@@ -1,7 +1,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Download, ZoomIn, ZoomOut } from "lucide-react";
+import { Copy, Download, ZoomIn, ZoomOut, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 interface SpecPanelProps {
@@ -79,7 +79,8 @@ const SpecPanel = ({ content }: SpecPanelProps) => {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <FileText className="w-10 h-10 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm text-center">
               채팅에서 Spec이 생성되면<br />여기에 표시됩니다
             </p>
