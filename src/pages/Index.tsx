@@ -44,7 +44,7 @@ const Index = () => {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background flex">
+    <div className="h-screen w-screen overflow-hidden bg-background flex relative">
       {/* Icon Sidebar */}
       <div className="w-12 shrink-0 border-r bg-card flex flex-col items-center py-3 gap-1">
         <SidebarButton
