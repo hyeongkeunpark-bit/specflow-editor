@@ -19,7 +19,7 @@ interface HistoryPanelProps {
   onClose?: () => void;
 }
 
-const HistoryPanel = ({ snapshots, onRestore }: HistoryPanelProps) => {
+const HistoryPanel = ({ snapshots, onRestore, onClose }: HistoryPanelProps) => {
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
 
   const formatTime = (ts: number) => {
