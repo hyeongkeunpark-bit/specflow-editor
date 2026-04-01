@@ -96,35 +96,25 @@ const Index = () => {
         />
       </aside>
 
-      {/* Overlay Side Panel */}
-      <div
-        className={`absolute left-12 top-0 h-full w-[720px] z-30 border-r bg-background shadow-2xl shadow-black/40 transition-transform duration-250 ease-in-out ${
-          activePanel ? "translate-x-0" : "-translate-x-full pointer-events-none"
-        }`}
-      >
-        {activePanel === "spec" && <SpecPanel content={specContent} />}
-        {activePanel === "code" && <CodeViewPanel htmlContent={htmlContent} />}
-        {activePanel === "history" && <HistoryPanel snapshots={snapshots} onRestore={handleRestore} />}
-      </div>
-
-      {/* Backdrop */}
+      {/* Push Side Panel */}
       {activePanel && (
-        <div
-          className="absolute inset-0 left-12 z-20 bg-black/20"
-          onClick={() => setActivePanel(null)}
-        />
+        <div className="h-full w-[720px] shrink-0 border-r bg-background">
+          {activePanel === "spec" && <SpecPanel content={specContent} />}
+          {activePanel === "code" && <CodeViewPanel htmlContent={htmlContent} />}
+          {activePanel === "history" && <HistoryPanel snapshots={snapshots} onRestore={handleRestore} />}
+        </div>
       )}
 
       {/* Main Area: Chat + Preview */}
       <div className="flex-1 min-w-0">
         <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel defaultSize={50} minSize={25} maxSize={70}>
+          <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
             <ChatPanel messages={messages} onSend={handleSend} />
           </ResizablePanel>
 
           <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
 
-          <ResizablePanel defaultSize={50} minSize={25}>
+          <ResizablePanel defaultSize={70} minSize={30}>
             <PrototypePanel htmlContent={htmlContent} />
           </ResizablePanel>
         </ResizablePanelGroup>
