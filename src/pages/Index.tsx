@@ -214,6 +214,15 @@ function CodeViewPanel({ htmlContent, onClose }: { htmlContent: string; onClose?
     <div className="flex flex-col h-full bg-background">
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-panel-header">
         <div className="flex items-center gap-2">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+              title="패널 접기"
+            >
+              <PanelRightClose className="w-4 h-4" />
+            </button>
+          )}
           <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-panel-header-foreground">Html</h2>
         </div>
