@@ -31,7 +31,7 @@ const Index = () => {
   } = useSessionManager();
 
   const [activePanel, setActivePanel] = useState<SidePanel>("spec");
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const toggleTheme = () => {
