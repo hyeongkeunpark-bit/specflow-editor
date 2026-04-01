@@ -87,6 +87,13 @@ const Index = () => {
           active={activePanel === "history"}
           onClick={() => togglePanel("history")}
         />
+        <div className="flex-1" />
+        <SidebarButton
+          icon={isDark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+          label={isDark ? "Light mode" : "Dark mode"}
+          active={false}
+          onClick={toggleTheme}
+        />
       </aside>
 
       {/* Overlay Side Panel */}
