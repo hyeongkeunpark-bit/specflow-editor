@@ -8,11 +8,15 @@ import ChatPanel, { ChatMessage } from "@/components/ChatPanel";
 import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
 import { generateDummyResponse } from "@/lib/dummyResponse";
+import { FileText, Code2 } from "lucide-react";
+
+type SidePanel = "spec" | "code" | null;
 
 const Index = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [specContent, setSpecContent] = useState("");
   const [htmlContent, setHtmlContent] = useState("");
+  const [activePanel, setActivePanel] = useState<SidePanel>(null);
 
   const handleSend = useCallback((text: string) => {
     const userMsg: ChatMessage = {
@@ -22,7 +26,6 @@ const Index = () => {
     };
     setMessages((prev) => [...prev, userMsg]);
 
-    // Simulate AI response after a short delay
     setTimeout(() => {
       const response = generateDummyResponse(text);
       const aiMsg: ChatMessage = {
@@ -36,35 +39,107 @@ const Index = () => {
     }, 600);
   }, []);
 
+  const togglePanel = (panel: SidePanel) => {
+    setActivePanel((prev) => (prev === panel ? null : panel));
+  };
+
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background">
-      <ResizablePanelGroup direction="horizontal">
-        {/* Chat Panel - 40% */}
-        <ResizablePanel defaultSize={40} minSize={25} maxSize={60}>
-          <ChatPanel messages={messages} onSend={handleSend} />
-        </ResizablePanel>
+    <div className="h-screen w-screen overflow-hidden bg-background flex">
+      {/* Icon Sidebar */}
+      <div className="w-12 shrink-0 border-r bg-card flex flex-col items-center py-3 gap-1">
+        <SidebarButton
+          icon={<FileText className="w-[18px] h-[18px]" />}
+          label="Spec"
+          active={activePanel === "spec"}
+          onClick={() => togglePanel("spec")}
+        />
+        <SidebarButton
+          icon={<Code2 className="w-[18px] h-[18px]" />}
+          label="Code"
+          active={activePanel === "code"}
+          onClick={() => togglePanel("code")}
+        />
+      </div>
 
-        <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
-
-        {/* Right Side - 60% */}
-        <ResizablePanel defaultSize={60} minSize={30}>
-          <ResizablePanelGroup direction="vertical">
-            {/* Spec Panel */}
-            <ResizablePanel defaultSize={50} minSize={20}>
+      {/* Side Panel (Spec or Code) */}
+      {activePanel && (
+        <>
+          <div className="w-[380px] shrink-0 border-r overflow-hidden">
+            {activePanel === "spec" ? (
               <SpecPanel content={specContent} />
-            </ResizablePanel>
+            ) : (
+              <CodeViewPanel htmlContent={htmlContent} />
+            )}
+          </div>
+        </>
+      )}
 
-            <ResizableHandle className="h-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
+      {/* Main Area: Chat + Preview */}
+      <div className="flex-1 min-w-0">
+        <ResizablePanelGroup direction="horizontal">
+          <ResizablePanel defaultSize={40} minSize={25} maxSize={60}>
+            <ChatPanel messages={messages} onSend={handleSend} />
+          </ResizablePanel>
 
-            {/* Prototype Panel */}
-            <ResizablePanel defaultSize={50} minSize={20}>
-              <PrototypePanel htmlContent={htmlContent} />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
+
+          <ResizablePanel defaultSize={60} minSize={30}>
+            <PrototypePanel htmlContent={htmlContent} />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
     </div>
   );
 };
+
+function SidebarButton({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      className={`w-9 h-9 flex items-center justify-center rounded-md transition-colors ${
+        active
+          ? "bg-accent text-accent-foreground"
+          : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+      }`}
+    >
+      {icon}
+    </button>
+  );
+}
+
+function CodeViewPanel({ htmlContent }: { htmlContent: string }) {
+  return (
+    <div className="flex flex-col h-full bg-background">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-panel-header">
+        <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-panel-header-foreground">Code</h2>
+      </div>
+      <div className="flex-1 overflow-auto p-4">
+        {htmlContent ? (
+          <pre className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-all font-mono">
+            {htmlContent}
+          </pre>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-muted-foreground text-sm text-center">
+              생성된 코드가 여기에 표시됩니다
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default Index;
