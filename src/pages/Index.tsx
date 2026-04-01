@@ -147,10 +147,9 @@ function CodeViewPanel({ htmlContent }: { htmlContent: string }) {
           <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-panel-header-foreground">Html</h2>
         </div>
-        {htmlContent && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleCopy}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleCopy}
               className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
               title="복사"
             >
