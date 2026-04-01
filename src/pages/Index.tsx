@@ -125,14 +125,39 @@ const Index = () => {
         </ResizablePanelGroup>
       </div>
 
-      {/* Push Side Panel - Right */}
+      {/* Resizable Side Panel - Right */}
       {activePanel && (
-        <div className="h-full w-[30%] shrink-0 border-l bg-background">
-          {activePanel === "spec" && <SpecPanel content={activeSession.specContent} onClose={() => setActivePanel(null)} />}
-          {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} />}
-          {activePanel === "history" && (
-            <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onClose={() => setActivePanel(null)} />
-          )}
+        <div className="h-full flex shrink-0" style={{ width: '30%', minWidth: '200px', maxWidth: '50%' }}>
+          <div className="relative w-1.5 cursor-col-resize group flex items-center justify-center hover:bg-primary/20 transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const panel = (e.target as HTMLElement).parentElement!;
+              const startWidth = panel.offsetWidth;
+              const container = panel.parentElement!;
+              const containerWidth = container.offsetWidth;
+              const onMouseMove = (ev: MouseEvent) => {
+                const diff = startX - ev.clientX;
+                const newWidth = Math.min(Math.max(startWidth + diff, 200), containerWidth * 0.5);
+                panel.style.width = `${newWidth}px`;
+              };
+              const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+              };
+              document.addEventListener('mousemove', onMouseMove);
+              document.addEventListener('mouseup', onMouseUp);
+            }}
+          >
+            <div className="w-px h-8 bg-border group-hover:bg-primary/50 transition-colors rounded-full" />
+          </div>
+          <div className="flex-1 min-w-0 border-l bg-background">
+            {activePanel === "spec" && <SpecPanel content={activeSession.specContent} onClose={() => setActivePanel(null)} />}
+            {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} />}
+            {activePanel === "history" && (
+              <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onClose={() => setActivePanel(null)} />
+            )}
+          </div>
         </div>
       )}
 
