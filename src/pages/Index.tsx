@@ -83,13 +83,13 @@ const Index = () => {
       {/* Main Area: Chat + Preview */}
       <div className="flex-1 min-w-0">
         <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel defaultSize={40} minSize={25} maxSize={60}>
+          <ResizablePanel defaultSize={50} minSize={25} maxSize={70}>
             <ChatPanel messages={messages} onSend={handleSend} />
           </ResizablePanel>
 
           <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
 
-          <ResizablePanel defaultSize={60} minSize={30}>
+          <ResizablePanel defaultSize={50} minSize={25}>
             <PrototypePanel htmlContent={htmlContent} />
           </ResizablePanel>
         </ResizablePanelGroup>
