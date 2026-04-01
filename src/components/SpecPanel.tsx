@@ -1,14 +1,15 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Download, ZoomIn, ZoomOut, FileText } from "lucide-react";
+import { Copy, Download, ZoomIn, ZoomOut, FileText, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 
 interface SpecPanelProps {
   content: string;
+  onClose?: () => void;
 }
 
-const SpecPanel = ({ content }: SpecPanelProps) => {
+const SpecPanel = ({ content, onClose }: SpecPanelProps) => {
   const [zoom, setZoom] = useState(100);
 
   const handleCopy = () => {
@@ -33,6 +34,15 @@ const SpecPanel = ({ content }: SpecPanelProps) => {
     <div className="flex flex-col h-full bg-background">
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-panel-header">
         <div className="flex items-center gap-2">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+              title="패널 접기"
+            >
+              <PanelRightClose className="w-4 h-4" />
+            </button>
+          )}
           <span className="text-xs font-mono text-muted-foreground">📄</span>
           <h2 className="text-sm font-semibold text-panel-header-foreground">Spec Document</h2>
         </div>

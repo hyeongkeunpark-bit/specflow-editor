@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { History, RotateCcw } from "lucide-react";
+import { History, RotateCcw, PanelRightClose } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,9 +16,10 @@ import type { Snapshot } from "@/lib/types";
 interface HistoryPanelProps {
   snapshots: Snapshot[];
   onRestore: (index: number) => void;
+  onClose?: () => void;
 }
 
-const HistoryPanel = ({ snapshots, onRestore }: HistoryPanelProps) => {
+const HistoryPanel = ({ snapshots, onRestore, onClose }: HistoryPanelProps) => {
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
 
   const formatTime = (ts: number) => {
@@ -29,6 +30,15 @@ const HistoryPanel = ({ snapshots, onRestore }: HistoryPanelProps) => {
   return (
     <div className="flex flex-col h-full bg-background">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-panel-header">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+            title="패널 접기"
+          >
+            <PanelRightClose className="w-4 h-4" />
+          </button>
+        )}
         <History className="w-3.5 h-3.5 text-muted-foreground" />
         <h2 className="text-sm font-semibold text-panel-header-foreground">History</h2>
         <span className="ml-auto text-xs text-muted-foreground">{snapshots.length}개 버전</span>
