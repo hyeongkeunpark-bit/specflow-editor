@@ -44,7 +44,7 @@ const Index = () => {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background flex">
+    <div className="h-screen w-screen overflow-hidden bg-background flex relative">
       {/* Icon Sidebar */}
       <div className="w-12 shrink-0 border-r bg-card flex flex-col items-center py-3 gap-1">
         <SidebarButton
@@ -61,17 +61,22 @@ const Index = () => {
         />
       </div>
 
-      {/* Side Panel (Spec or Code) */}
+      {/* Overlay Side Panel */}
+      <div
+        className={`absolute left-12 top-0 h-full w-[380px] z-30 border-r bg-background shadow-2xl shadow-black/40 transition-transform duration-250 ease-in-out ${
+          activePanel ? "translate-x-0" : "-translate-x-full pointer-events-none"
+        }`}
+      >
+        {activePanel === "spec" && <SpecPanel content={specContent} />}
+        {activePanel === "code" && <CodeViewPanel htmlContent={htmlContent} />}
+      </div>
+
+      {/* Backdrop */}
       {activePanel && (
-        <>
-          <div className="w-[380px] shrink-0 border-r overflow-hidden">
-            {activePanel === "spec" ? (
-              <SpecPanel content={specContent} />
-            ) : (
-              <CodeViewPanel htmlContent={htmlContent} />
-            )}
-          </div>
-        </>
+        <div
+          className="absolute inset-0 left-12 z-20 bg-black/20"
+          onClick={() => setActivePanel(null)}
+        />
       )}
 
       {/* Main Area: Chat + Preview */}
