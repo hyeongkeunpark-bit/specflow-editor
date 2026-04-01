@@ -1,11 +1,12 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Download, ZoomIn, ZoomOut, FileText } from "lucide-react";
+import { Copy, Download, ZoomIn, ZoomOut, FileText, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 
 interface SpecPanelProps {
   content: string;
+  onClose?: () => void;
 }
 
 const SpecPanel = ({ content }: SpecPanelProps) => {
