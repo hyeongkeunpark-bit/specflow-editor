@@ -14,6 +14,7 @@ interface ChatPanelProps {
 
 const ChatPanel = ({ messages, onSend }: ChatPanelProps) => {
   const [input, setInput] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -32,6 +33,7 @@ const ChatPanel = ({ messages, onSend }: ChatPanelProps) => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || isComposing) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -88,6 +90,8 @@ const ChatPanel = ({ messages, onSend }: ChatPanelProps) => {
             ref={textareaRef}
             value={input}
             onChange={handleTextareaChange}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={(e) => { setIsComposing(false); setInput(e.currentTarget.value); }}
             onKeyDown={handleKeyDown}
             placeholder="메시지를 입력하세요..."
             rows={1}
