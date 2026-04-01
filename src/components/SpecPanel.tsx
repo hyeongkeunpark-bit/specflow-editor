@@ -83,8 +83,8 @@ const SpecPanel = ({ content, onClose }: SpecPanelProps) => {
       <div className="flex-1 overflow-y-auto p-4">
         {content ? (
           <div
-            className="markdown-body origin-top-left"
-            style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}
+            className="markdown-body"
+            style={{ fontSize: `${zoom}%` }}
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
