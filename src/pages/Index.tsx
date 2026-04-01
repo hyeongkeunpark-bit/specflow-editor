@@ -98,7 +98,7 @@ const Index = () => {
 
       {/* Push Side Panel */}
       {activePanel && (
-        <div className="h-full w-[720px] shrink-0 border-r bg-background">
+        <div className="h-full w-[40%] shrink-0 border-r bg-background">
           {activePanel === "spec" && <SpecPanel content={specContent} />}
           {activePanel === "code" && <CodeViewPanel htmlContent={htmlContent} />}
           {activePanel === "history" && <HistoryPanel snapshots={snapshots} onRestore={handleRestore} />}
