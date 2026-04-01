@@ -52,10 +52,8 @@ const SpecPanel = ({ content }: SpecPanelProps) => {
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
-          {content && (
-            <>
-              <div className="w-px h-4 bg-border mx-1" />
-              <button
+          <div className="w-px h-4 bg-border mx-1" />
+          <button
                 onClick={handleCopy}
                 className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
                 title="복사"
