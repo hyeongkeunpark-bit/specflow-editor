@@ -79,7 +79,8 @@ const SpecPanel = ({ content }: SpecPanelProps) => {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <FileText className="w-10 h-10 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm text-center">
               채팅에서 Spec이 생성되면<br />여기에 표시됩니다
             </p>
