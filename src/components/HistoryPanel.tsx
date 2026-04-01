@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { History, RotateCcw } from "lucide-react";
+import { History, RotateCcw, PanelRightClose } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
