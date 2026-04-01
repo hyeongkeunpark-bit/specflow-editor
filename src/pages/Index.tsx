@@ -20,6 +20,13 @@ const Index = () => {
   const [htmlContent, setHtmlContent] = useState("");
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [activePanel, setActivePanel] = useState<SidePanel>(null);
+  const [isDark, setIsDark] = useState(true);
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+  };
 
   const handleSend = useCallback((text: string) => {
     const userMsg: ChatMessage = {
