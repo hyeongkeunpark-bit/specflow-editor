@@ -9,7 +9,7 @@ import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel, { Snapshot } from "@/components/HistoryPanel";
 import { generateDummyResponse } from "@/lib/dummyResponse";
-import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link } from "lucide-react";
+import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | "history" | null;
@@ -20,6 +20,13 @@ const Index = () => {
   const [htmlContent, setHtmlContent] = useState("");
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [activePanel, setActivePanel] = useState<SidePanel>(null);
+  const [isDark, setIsDark] = useState(true);
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+  };
 
   const handleSend = useCallback((text: string) => {
     const userMsg: ChatMessage = {
@@ -79,6 +86,13 @@ const Index = () => {
           label="History"
           active={activePanel === "history"}
           onClick={() => togglePanel("history")}
+        />
+        <div className="flex-1" />
+        <SidebarButton
+          icon={isDark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+          label={isDark ? "Light mode" : "Dark mode"}
+          active={false}
+          onClick={toggleTheme}
         />
       </aside>
 
