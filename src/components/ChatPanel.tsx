@@ -131,7 +131,7 @@ const ChatPanel = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDeleteSession(s.id);
+                      setDeleteTargetId(s.id);
                     }}
                     className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive shrink-0"
                   >
