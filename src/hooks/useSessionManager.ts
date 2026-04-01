@@ -54,7 +54,15 @@ export function useSessionManager() {
     return loaded.length > 0 ? loaded[0].id : createEmptySession().id;
   });
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
+  const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0] || {
+    id: "",
+    title: "새 세션",
+    createdAt: Date.now(),
+    messages: [] as ChatMessage[],
+    specContent: "",
+    htmlContent: "",
+    snapshots: [] as Snapshot[],
+  };
 
   // Persist on change
   useEffect(() => {
