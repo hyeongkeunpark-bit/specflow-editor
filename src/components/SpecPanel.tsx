@@ -9,7 +9,7 @@ interface SpecPanelProps {
   onClose?: () => void;
 }
 
-const SpecPanel = ({ content }: SpecPanelProps) => {
+const SpecPanel = ({ content, onClose }: SpecPanelProps) => {
   const [zoom, setZoom] = useState(100);
 
   const handleCopy = () => {
