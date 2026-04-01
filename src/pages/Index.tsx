@@ -90,6 +90,7 @@ const Index = () => {
       >
         {activePanel === "spec" && <SpecPanel content={specContent} />}
         {activePanel === "code" && <CodeViewPanel htmlContent={htmlContent} />}
+        {activePanel === "history" && <HistoryPanel snapshots={snapshots} onRestore={handleRestore} />}
       </div>
 
       {/* Backdrop */}
