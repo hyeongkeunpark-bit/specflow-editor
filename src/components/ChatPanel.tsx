@@ -14,6 +14,7 @@ interface ChatPanelProps {
 
 const ChatPanel = ({ messages, onSend }: ChatPanelProps) => {
   const [input, setInput] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
