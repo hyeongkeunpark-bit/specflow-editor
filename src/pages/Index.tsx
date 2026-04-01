@@ -130,17 +130,6 @@ const Index = () => {
         />
       </aside>
 
-      {/* Push Side Panel */}
-      {activePanel && (
-        <div className="h-full w-[40%] shrink-0 border-r bg-background">
-          {activePanel === "spec" && <SpecPanel content={activeSession.specContent} />}
-          {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} />}
-          {activePanel === "history" && (
-            <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} />
-          )}
-        </div>
-      )}
-
       {/* Main Area: Chat + Preview */}
       <div className="flex-1 min-w-0">
         <ResizablePanelGroup direction="horizontal">
@@ -164,6 +153,17 @@ const Index = () => {
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
+
+      {/* Push Side Panel - Right */}
+      {activePanel && (
+        <div className="h-full w-[40%] shrink-0 border-l bg-background">
+          {activePanel === "spec" && <SpecPanel content={activeSession.specContent} />}
+          {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} />}
+          {activePanel === "history" && (
+            <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} />
+          )}
+        </div>
+      )}
     </div>
   );
 };
