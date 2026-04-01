@@ -101,8 +101,43 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background flex relative">
-      {/* Icon Sidebar */}
-      <aside className="relative z-40 w-12 shrink-0 border-r bg-card flex flex-col items-center py-3 gap-1">
+      {/* Main Area: Chat + Preview */}
+      <div className="flex-1 min-w-0">
+        <ResizablePanelGroup direction="horizontal">
+          <ResizablePanel defaultSize={43} minSize={20} maxSize={60}>
+            <ChatPanel
+              messages={activeSession.messages}
+              onSend={handleSend}
+              isLoading={isLoading}
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onNewSession={createNewSession}
+              onSwitchSession={switchSession}
+              onDeleteSession={deleteSession}
+            />
+          </ResizablePanel>
+
+          <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
+
+          <ResizablePanel defaultSize={57} minSize={30}>
+            <PrototypePanel htmlContent={activeSession.htmlContent} />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+
+      {/* Push Side Panel - Right */}
+      {activePanel && (
+        <div className="h-full w-[30%] shrink-0 border-l bg-background">
+          {activePanel === "spec" && <SpecPanel content={activeSession.specContent} />}
+          {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} />}
+          {activePanel === "history" && (
+            <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} />
+          )}
+        </div>
+      )}
+
+      {/* Icon Sidebar - Right */}
+      <aside className="relative z-40 w-12 shrink-0 border-l bg-card flex flex-col items-center py-3 gap-1">
         <SidebarButton
           icon={<FileText className="w-[18px] h-[18px]" />}
           label="Spec"
@@ -129,41 +164,6 @@ const Index = () => {
           onClick={toggleTheme}
         />
       </aside>
-
-      {/* Main Area: Chat + Preview */}
-      <div className="flex-1 min-w-0">
-        <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel defaultSize={40} minSize={20} maxSize={60}>
-            <ChatPanel
-              messages={activeSession.messages}
-              onSend={handleSend}
-              isLoading={isLoading}
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onNewSession={createNewSession}
-              onSwitchSession={switchSession}
-              onDeleteSession={deleteSession}
-            />
-          </ResizablePanel>
-
-          <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
-
-          <ResizablePanel defaultSize={60} minSize={30}>
-            <PrototypePanel htmlContent={activeSession.htmlContent} />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-
-      {/* Push Side Panel - Right */}
-      {activePanel && (
-        <div className="h-full w-[40%] shrink-0 border-l bg-background">
-          {activePanel === "spec" && <SpecPanel content={activeSession.specContent} />}
-          {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} />}
-          {activePanel === "history" && (
-            <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} />
-          )}
-        </div>
-      )}
     </div>
   );
 };
