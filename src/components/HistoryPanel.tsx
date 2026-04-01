@@ -16,6 +16,7 @@ import type { Snapshot } from "@/lib/types";
 interface HistoryPanelProps {
   snapshots: Snapshot[];
   onRestore: (index: number) => void;
+  onClose?: () => void;
 }
 
 const HistoryPanel = ({ snapshots, onRestore }: HistoryPanelProps) => {
