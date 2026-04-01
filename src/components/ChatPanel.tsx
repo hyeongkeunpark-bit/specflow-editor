@@ -111,10 +111,7 @@ const ChatPanel = ({
                 <DropdownMenuItem
                   key={s.id}
                   className={`flex items-center justify-between gap-2 ${s.id === activeSessionId ? "bg-accent" : ""}`}
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    onSwitchSession(s.id);
-                  }}
+                  onSelect={() => onSwitchSession(s.id)}
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">{s.title}</p>
