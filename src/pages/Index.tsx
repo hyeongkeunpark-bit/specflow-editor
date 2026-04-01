@@ -11,7 +11,7 @@ import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { generateDummyResponse } from "@/lib/dummyResponse";
 import type { ChatMessage } from "@/lib/types";
-import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon } from "lucide-react";
+import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | "history" | null;
