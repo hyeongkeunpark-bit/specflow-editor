@@ -8,6 +8,16 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -40,6 +50,7 @@ const ChatPanel = ({
 }: ChatPanelProps) => {
   const [input, setInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,7 +131,7 @@ const ChatPanel = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDeleteSession(s.id);
+                      setDeleteTargetId(s.id);
                     }}
                     className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive shrink-0"
                   >
@@ -237,6 +248,28 @@ const ChatPanel = ({
           </button>
         </div>
       </div>
+      <AlertDialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>세션을 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 세션의 대화 내용, 문서, 프로토타입이 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTargetId) onDeleteSession(deleteTargetId);
+                setDeleteTargetId(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
