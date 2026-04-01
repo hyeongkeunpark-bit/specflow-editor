@@ -1,6 +1,7 @@
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Download } from "lucide-react";
+import { Copy, Download, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
 
 interface SpecPanelProps {
@@ -8,6 +9,8 @@ interface SpecPanelProps {
 }
 
 const SpecPanel = ({ content }: SpecPanelProps) => {
+  const [zoom, setZoom] = useState(100);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(content);
     toast.success("Spec이 클립보드에 복사되었습니다");
@@ -23,38 +26,60 @@ const SpecPanel = ({ content }: SpecPanelProps) => {
     URL.revokeObjectURL(url);
   };
 
+  const zoomIn = () => setZoom((z) => Math.min(z + 10, 200));
+  const zoomOut = () => setZoom((z) => Math.max(z - 10, 50));
+
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-panel-header">
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-muted-foreground">📄</span>
           <h2 className="text-sm font-semibold text-panel-header-foreground">Spec Document</h2>
         </div>
-        {content && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleCopy}
-              className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
-              title="복사"
-            >
-              <Copy className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleDownload}
-              className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
-              title="다운로드 (.md)"
-            >
-              <Download className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={zoomOut}
+            className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+            title="축소"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+          <span className="text-xs text-muted-foreground w-8 text-center tabular-nums">{zoom}%</span>
+          <button
+            onClick={zoomIn}
+            className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+            title="확대"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+          {content && (
+            <>
+              <div className="w-px h-4 bg-border mx-1" />
+              <button
+                onClick={handleCopy}
+                className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+                title="복사"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleDownload}
+                className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+                title="다운로드 (.md)"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
         {content ? (
-          <div className="markdown-body">
+          <div
+            className="markdown-body origin-top-left"
+            style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}
+          >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
         ) : (
