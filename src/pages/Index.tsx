@@ -9,7 +9,7 @@ import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel, { Snapshot } from "@/components/HistoryPanel";
 import { generateDummyResponse } from "@/lib/dummyResponse";
-import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link } from "lucide-react";
+import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | "history" | null;
