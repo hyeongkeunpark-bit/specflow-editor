@@ -18,6 +18,7 @@ const Index = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [specContent, setSpecContent] = useState("");
   const [htmlContent, setHtmlContent] = useState("");
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [activePanel, setActivePanel] = useState<SidePanel>(null);
 
   const handleSend = useCallback((text: string) => {
