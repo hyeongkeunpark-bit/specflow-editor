@@ -194,7 +194,7 @@ function SidebarButton({
   );
 }
 
-function CodeViewPanel({ htmlContent }: { htmlContent: string }) {
+function CodeViewPanel({ htmlContent, onClose }: { htmlContent: string; onClose?: () => void }) {
   const handleCopy = () => {
     navigator.clipboard.writeText(htmlContent);
     toast.success("HTML이 클립보드에 복사되었습니다");
