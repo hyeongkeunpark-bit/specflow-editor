@@ -90,6 +90,8 @@ const ChatPanel = ({ messages, onSend }: ChatPanelProps) => {
             ref={textareaRef}
             value={input}
             onChange={handleTextareaChange}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={(e) => { setIsComposing(false); setInput(e.currentTarget.value); }}
             onKeyDown={handleKeyDown}
             placeholder="메시지를 입력하세요..."
             rows={1}

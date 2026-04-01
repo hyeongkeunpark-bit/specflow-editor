@@ -67,8 +67,6 @@ const SpecPanel = ({ content }: SpecPanelProps) => {
               >
                 <Download className="w-3.5 h-3.5" />
               </button>
-            </>
-          )}
         </div>
       </div>
 

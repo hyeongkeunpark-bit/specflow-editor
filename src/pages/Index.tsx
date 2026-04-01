@@ -162,8 +162,7 @@ function CodeViewPanel({ htmlContent }: { htmlContent: string }) {
             >
               <Download className="w-3.5 h-3.5" />
             </button>
-          </div>
-        )}
+        </div>
       </div>
       <div className="flex-1 overflow-auto p-4">
         {htmlContent ? (
