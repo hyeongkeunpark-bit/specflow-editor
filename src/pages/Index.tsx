@@ -125,11 +125,46 @@ function SidebarButton({
 }
 
 function CodeViewPanel({ htmlContent }: { htmlContent: string }) {
+  const handleCopy = () => {
+    navigator.clipboard.writeText(htmlContent);
+    toast.success("HTML이 클립보드에 복사되었습니다");
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([htmlContent], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "prototype.html";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-panel-header">
-        <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
-        <h2 className="text-sm font-semibold text-panel-header-foreground">Code</h2>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b bg-panel-header">
+        <div className="flex items-center gap-2">
+          <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-panel-header-foreground">Html</h2>
+        </div>
+        {htmlContent && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleCopy}
+              className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+              title="복사"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleDownload}
+              className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+              title="다운로드 (.html)"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-auto p-4">
         {htmlContent ? (
