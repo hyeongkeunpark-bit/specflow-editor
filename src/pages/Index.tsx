@@ -39,6 +39,10 @@ const Index = () => {
       setMessages((prev) => [...prev, aiMsg]);
       setSpecContent(response.spec);
       setHtmlContent(response.html);
+      setSnapshots((prev) => [
+        ...prev,
+        { spec: response.spec, html: response.html, timestamp: Date.now(), summary: text },
+      ]);
     }, 600);
   }, []);
 
