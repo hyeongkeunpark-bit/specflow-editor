@@ -8,7 +8,8 @@ import ChatPanel, { ChatMessage } from "@/components/ChatPanel";
 import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
 import { generateDummyResponse } from "@/lib/dummyResponse";
-import { FileText, Code2 } from "lucide-react";
+import { FileText, Code2, Copy, Download, ZoomIn, ZoomOut, Link } from "lucide-react";
+import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | null;
 
@@ -63,7 +64,7 @@ const Index = () => {
 
       {/* Overlay Side Panel */}
       <div
-        className={`absolute left-12 top-0 h-full w-[520px] z-30 border-r bg-background shadow-2xl shadow-black/40 transition-transform duration-250 ease-in-out ${
+        className={`absolute left-12 top-0 h-full w-[720px] z-30 border-r bg-background shadow-2xl shadow-black/40 transition-transform duration-250 ease-in-out ${
           activePanel ? "translate-x-0" : "-translate-x-full pointer-events-none"
         }`}
       >
@@ -82,13 +83,13 @@ const Index = () => {
       {/* Main Area: Chat + Preview */}
       <div className="flex-1 min-w-0">
         <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel defaultSize={40} minSize={25} maxSize={60}>
+          <ResizablePanel defaultSize={50} minSize={25} maxSize={70}>
             <ChatPanel messages={messages} onSend={handleSend} />
           </ResizablePanel>
 
           <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
 
-          <ResizablePanel defaultSize={60} minSize={30}>
+          <ResizablePanel defaultSize={50} minSize={25}>
             <PrototypePanel htmlContent={htmlContent} />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -124,11 +125,46 @@ function SidebarButton({
 }
 
 function CodeViewPanel({ htmlContent }: { htmlContent: string }) {
+  const handleCopy = () => {
+    navigator.clipboard.writeText(htmlContent);
+    toast.success("HTML이 클립보드에 복사되었습니다");
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([htmlContent], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "prototype.html";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-panel-header">
-        <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
-        <h2 className="text-sm font-semibold text-panel-header-foreground">Code</h2>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b bg-panel-header">
+        <div className="flex items-center gap-2">
+          <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-panel-header-foreground">Html</h2>
+        </div>
+        {htmlContent && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleCopy}
+              className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+              title="복사"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleDownload}
+              className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+              title="다운로드 (.html)"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-auto p-4">
         {htmlContent ? (
