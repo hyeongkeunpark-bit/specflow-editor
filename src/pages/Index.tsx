@@ -128,10 +128,10 @@ const Index = () => {
       {/* Push Side Panel - Right */}
       {activePanel && (
         <div className="h-full w-[30%] shrink-0 border-l bg-background">
-          {activePanel === "spec" && <SpecPanel content={activeSession.specContent} />}
-          {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} />}
+          {activePanel === "spec" && <SpecPanel content={activeSession.specContent} onClose={() => setActivePanel(null)} />}
+          {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} />}
           {activePanel === "history" && (
-            <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} />
+            <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onClose={() => setActivePanel(null)} />
           )}
         </div>
       )}
