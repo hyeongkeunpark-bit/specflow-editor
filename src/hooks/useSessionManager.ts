@@ -127,13 +127,16 @@ export function useSessionManager() {
     (id: string) => {
       setSessions((prev) => {
         const filtered = prev.filter((s) => s.id !== id);
+        if (id === activeSessionId) {
+          // 현재 세션 삭제 → 새 세션 생성
+          const newSession = createEmptySession();
+          setActiveSessionId(newSession.id);
+          return [newSession, ...filtered];
+        }
         if (filtered.length === 0) {
           const empty = createEmptySession();
           setActiveSessionId(empty.id);
           return [empty];
-        }
-        if (id === activeSessionId) {
-          setActiveSessionId(filtered[0].id);
         }
         return filtered;
       });

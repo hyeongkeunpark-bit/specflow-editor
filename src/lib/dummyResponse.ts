@@ -1,129 +1,119 @@
-export const DUMMY_SPEC = `# 로그인 페이지 Spec
+import type { ChatResponse } from "./api";
 
-## 개요
-사용자가 이메일과 비밀번호로 로그인할 수 있는 페이지입니다.
+/**
+ * 테스트용 더미 응답
+ * 특정 패턴의 유저 메시지에 대해 API 호출 없이 로컬 더미를 반환
+ * null을 반환하면 실제 API를 호출
+ */
+export function matchDummy(userMessage: string): ChatResponse | null {
+  const msg = userMessage.toLowerCase();
 
-## 기능 요구사항
+  // 분할 생성 트리거 테스트
+  if (msg.includes("test:spec")) {
+    return {
+      text: "Spec \uC0DD\uC131\uC744 \uC2DC\uC791\uD569\uB2C8\uB2E4.",
+      spec: null,
+      html: null,
+    };
+  }
 
-### 필수 기능
-- 이메일 입력 필드 (유효성 검사 포함)
-- 비밀번호 입력 필드
-- "로그인" 버튼
-- "비밀번호 찾기" 링크
+  // 3번 수정 테스트
+  if (msg.includes("3\uBC88") && (msg.includes("\uD50C\uB85C\uC6B0") || msg.includes("\uBCC0\uACBD") || msg.includes("\uC218\uC815"))) {
+    return {
+      text: DUMMY_SECTION_3_UPDATED,
+      spec: DUMMY_SECTION_3_UPDATED,
+      html: null,
+    };
+  }
 
-### 선택 기능
-- 소셜 로그인 (Google, GitHub)
-- "로그인 상태 유지" 체크박스
+  // 4번 시나리��� 추가 테스트
+  if (msg.includes("\uC2DC\uB098\uB9AC\uC624") && (msg.includes("\uCD94\uAC00") || msg.includes("\uC0DD\uC131"))) {
+    return {
+      text: DUMMY_SECTION_4_UPDATED,
+      spec: DUMMY_SECTION_4_UPDATED,
+      html: null,
+    };
+  }
 
-## UI 스펙
+  // 5번 수정 테스트
+  if (msg.includes("5\uBC88") && (msg.includes("\uC218\uC815") || msg.includes("\uC0DD\uC131"))) {
+    return {
+      text: DUMMY_SECTION_5,
+      spec: DUMMY_SECTION_5,
+      html: null,
+    };
+  }
 
-| 요소 | 스타일 |
-|------|--------|
-| 배경 | \`#0d1117\` |
-| 카드 | 중앙 정렬, 최대 400px |
-| 버튼 | Primary 컬러, full-width |
-
-## 에러 처리
-- 빈 필드 제출 시 인라인 에러 메시지 표시
-- 잘못된 인증 정보 시 토스트 알림
-`;
-
-export const DUMMY_HTML = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login Page</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0d1117;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      color: #c9d1d9;
-    }
-    .card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 12px;
-      padding: 40px;
-      width: 100%;
-      max-width: 400px;
-    }
-    h1 { font-size: 24px; margin-bottom: 8px; color: #f0f6fc; }
-    p.subtitle { color: #8b949e; margin-bottom: 24px; font-size: 14px; }
-    label { display: block; font-size: 13px; color: #8b949e; margin-bottom: 6px; }
-    input {
-      width: 100%;
-      padding: 10px 12px;
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      color: #c9d1d9;
-      font-size: 14px;
-      margin-bottom: 16px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    input:focus { border-color: #388bfd; }
-    .btn {
-      width: 100%;
-      padding: 10px;
-      background: #238636;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .btn:hover { background: #2ea043; }
-    .forgot { text-align: center; margin-top: 16px; }
-    .forgot a { color: #388bfd; text-decoration: none; font-size: 13px; }
-    .divider {
-      display: flex; align-items: center; margin: 20px 0;
-      color: #484f58; font-size: 12px;
-    }
-    .divider::before, .divider::after {
-      content: ''; flex: 1; height: 1px; background: #30363d;
-    }
-    .divider span { padding: 0 12px; }
-    .social { display: flex; gap: 8px; }
-    .social button {
-      flex: 1; padding: 8px; background: #21262d; border: 1px solid #30363d;
-      border-radius: 6px; color: #c9d1d9; cursor: pointer; font-size: 13px;
-      transition: background 0.2s;
-    }
-    .social button:hover { background: #30363d; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>로그인</h1>
-    <p class="subtitle">계정에 로그인하세요</p>
-    <label>이메일</label>
-    <input type="email" placeholder="you@example.com" />
-    <label>비밀번호</label>
-    <input type="password" placeholder="••••••••" />
-    <button class="btn">로그인</button>
-    <div class="forgot"><a href="#">비밀번호를 잊으셨나요?</a></div>
-    <div class="divider"><span>또는</span></div>
-    <div class="social">
-      <button>Google</button>
-      <button>GitHub</button>
-    </div>
-  </div>
-</body>
-</html>`;
-
-export function generateDummyResponse(userMessage: string): { text: string; spec: string; html: string } {
-  return {
-    text: `"${userMessage}"에 대한 Spec 문서와 Prototype을 생성했습니다. 우측 패널에서 확인해보세요!`,
-    spec: DUMMY_SPEC,
-    html: DUMMY_HTML,
-  };
+  return null;
 }
+
+// ── 더미 Spec 섹션들 ��─
+
+const DUMMY_SECTION_3_UPDATED = `## 3. \uD574\uACB0\uCC45 / \uAE30\uB2A5 \uC124\uACC4
+
+### 3.1 \uC0AC\uC6A9\uC790 \uD50C\uB85C\uC6B0 (\uBCC0\uACBD\uB428)
+
+\`\`\`mermaid
+flowchart TD
+    A["\uD68C\uC6D0\uAC00\uC785 \uD3FC \uC785\uB825 \uC644\uB8CC"] --> B["\uC774\uC6A9\uB3D9\uC758\uC11C \uD654\uBA74 \uC9C4\uC785"]
+    B --> C{"\uC804\uCCB4\uB3D9\uC758 \uCCB4\uD06C?"}
+    C -->|Yes| D["\uD544\uC218+\uC120\uD0DD \uBAA8\uB450 \uCCB4\uD06C"]
+    C -->|No| E["\uAC1C\uBCC4 \uD56D\uBAA9 \uC120\uD0DD"]
+    D --> F["\uB3D9\uC758 \uC644\uB8CC \uBC84\uD2BC \uD65C\uC131\uD654"]
+    E --> G{"\uD544\uC218 \uD56D\uBAA9 \uBAA8\uB450 \uCCB4\uD06C?"}
+    G -->|Yes| F
+    G -->|No| H["\uBC84\uD2BC \uBE44\uD65C\uC131\uD654 + \uC548\uB0B4 \uBA54\uC2DC\uC9C0"]
+    F --> I["\uAC00\uC785 \uC644\uB8CC"]
+\`\`\`
+> \uD68C\uC6D0\uAC00\uC785 \uD3FC \u2192 \uC774\uC6A9\uB3D9\uC758\uC11C \u2192 \uC804\uCCB4\uB3D9\uC758/\uAC1C\uBCC4\uC120\uD0DD \u2192 \uD544\uC218 \uAC80\uC99D \u2192 \uAC00\uC785 \uC644\uB8CC
+
+### 3.2 \uD654\uBA74\uBCC4 \uBCC0\uACBD\uC810
+
+| \uD654\uBA74 | Before | After |
+|------|--------|-------|
+| \uC774\uC6A9\uB3D9\uC758\uC11C | 7\uAC1C \uD56D\uBAA9 \uB098\uC5F4 | \uD544\uC218/\uC120\uD0DD \uADF8\uB8F9\uD654 + \uC804\uCCB4\uB3D9\uC758 |
+| \uC57D\uAD00 \uC0C1\uC138 | \uC0C8 \uD398\uC774\uC9C0 \uC774\uB3D9 | Desktop: \uC544\uCF54\uB514\uC5B8 / Mobile: \uBC14\uD140\uC2DC\uD2B8 |
+| \uB3D9\uC758 \uBC84\uD2BC | \uD558\uB2E8 \uACE0\uC815 | \uD544\uC218 \uCCB4\uD06C \uC2DC \uD65C\uC131\uD654 + \uC0C9\uC0C1 \uBCC0\uACBD |`;
+
+const DUMMY_SECTION_4_UPDATED = `## 4. \uC2DC\uB098\uB9AC\uC624 & \uAD6C\uD604 \uADDC\uCE59
+
+### 4.1 \uC2DC\uB098\uB9AC\uC624
+
+| # | \uC2DC\uB098\uB9AC\uC624 | \uC624\uB958 \uB4F1\uAE09 | \uC0AC\uC804 \uC870\uAC74 | \uC0AC\uC6A9\uC790 \uD589\uB3D9 | \uAE30\uB300 \uACB0\uACFC | \uD574\uB2F9 \uD50C\uB7AB\uD3FC |
+|---|----------|----------|----------|----------|----------|----------|
+| 1 | \uC804\uCCB4\uB3D9\uC758 \uCCB4\uD06C | - | - | \uC804\uCCB4\uB3D9\uC758 \uCCB4\uD06C\uBC15\uC2A4 \uD074\uB9AD | \uD544\uC218+\uC120\uD0DD \uBAA8\uB450 \uCCB4\uD06C\uB428 | Web Desktop, Web Mobile |
+| 2 | \uC804\uCCB4\uB3D9\uC758 \uD574\uC81C | - | \uC804\uCCB4\uB3D9\uC758 \uCCB4\uD06C \uC0C1\uD0DC | \uC804\uCCB4\uB3D9\uC758 \uCCB4\uD06C \uD574\uC81C | \uBAA8\uB4E0 \uCCB4\uD06C\uBC15\uC2A4 \uD574\uC81C\uB428 | Web Desktop, Web Mobile |
+| 3 | \uAC1C\uBCC4 \uD574\uC81C\uB85C \uC804\uCCB4\uB3D9\uC758 \uD574\uC81C | - | \uC804\uCCB4\uB3D9\uC758 \uCCB4\uD06C \uC0C1\uD0DC | \uD544\uC218 \uD56D\uBAA9 1\uAC1C \uCCB4\uD06C \uD574\uC81C | \uC804\uCCB4\uB3D9\uC758 \uCCB4\uD06C\uBC15\uC2A4 \uC790\uB3D9 \uD574\uC81C | Web Desktop, Web Mobile |
+| 4 | \uD544\uC218 \uBBF8\uB3D9\uC758 \uC2DC \uC9C4\uD589 \uBD88\uAC00 | \uBE14\uB85C\uCEE4 | - | \uD544\uC218 \uBBF8\uCCB4\uD06C \uC0C1\uD0DC\uC5D0\uC11C \uBC84\uD2BC \uD074\uB9AD | \uBC84\uD2BC \uBE44\uD65C\uC131\uD654 + \uC778\uB77C\uC778 \uC5D0\uB7EC | Web Desktop, Web Mobile |
+| 5 | \uC57D\uAD00 \uC0C1\uC138 \uD3BC\uCE58\uAE30 (Desktop) | - | - | \uB3D9\uC758 \uD56D\uBAA9 \uC544\uCF54\uB514\uC5B8 \uD074\uB9AD | \uC57D\uAD00 \uBCF8\uBB38 \uD3BC\uCCD0\uC9D0 | Web Desktop |
+| 6 | \uC57D\uAD00 \uC0C1\uC138 \uD3BC\uCE58\uAE30 (Mobile) | - | - | \uB3D9\uC758 \uD56D\uBAA9 \uD0ED | \uBC14\uD140\uC2DC\uD2B8\uB85C \uC57D\uAD00 \uBCF8\uBB38 \uD45C\uC2DC | Web Mobile |
+
+### 4.2 \uAD6C\uD604 \uADDC\uCE59
+
+| # | \uADDC\uCE59 | \uC0C1\uC138 |
+|---|------|------|
+| 1 | \uC804\uCCB4\uB3D9\uC758 \uC591\uBC29\uD5A5 \uC5F0\uB3D9 | \uC804\uCCB4\u2192\uAC1C\uBCC4, \uAC1C\uBCC4 \uBAA8\uB450\uCCB4\uD06C\u2192\uC804\uCCB4 \uC790\uB3D9\uCCB4\uD06C |
+| 2 | \uD544\uC218 \uBBF8\uB3D9\uC758 \uC2DC \uC9C4\uD589 \uBD88\uAC00 | \uBC84\uD2BC \uBE44\uD65C\uC131\uD654 + \uC778\uB77C\uC778 \uC5D0\uB7EC \uBA54\uC2DC\uC9C0 |
+| 3 | \uC120\uD0DD \uD56D\uBAA9 \uAE30\uBCF8 \uBBF8\uCCB4\uD06C | \uCD08\uAE30 \uB85C\uB4DC \uC2DC unchecked |
+| 4 | \uC57D\uAD00 \uC0C1\uC138 UI | Desktop: \uC544\uCF54\uB514\uC5B8, Mobile: \uBC14\uD140\uC2DC\uD2B8 |`;
+
+const DUMMY_SECTION_5 = `## 5. \uC131\uACF5 \uAE30\uC900 & \uBC30\uD3EC \uCC28\uB2E8 \uC870\uAC74
+
+### 5.1 \uC131\uACF5 \uAE30\uC900
+
+| # | \uAE30\uC900 | \uC624\uB958 \uB4F1\uAE09 | \uC5F0\uAD00 \uC2DC\uB098\uB9AC\uC624 | \uAC80\uC99D \uD50C\uB7AB\uD3FC | \uCDA9\uC871 \uC5EC\uBD80 | \uBBF8\uCDA9\uC871 \uC2DC \uC601\uD5A5 |
+|---|------|----------|----------|----------|----------|----------|
+| 1 | \uC804\uCCB4\uB3D9\uC758 \uCCB4\uD06C \uC2DC \uBAA8\uB4E0 \uD56D\uBAA9 \uCCB4\uD06C\uB428 | \uBE14\uB85C\uCEE4 | #1 | All | - | \uD575\uC2EC \uAE30\uB2A5 \uBBF8\uB3D9\uC791 |
+| 2 | \uD544\uC218 \uBBF8\uB3D9\uC758 \uC2DC \uBC84\uD2BC \uBE44\uD65C\uC131\uD654 | \uBE14\uB85C\uCEE4 | #4 | All | - | \uD544\uC218 \uB3D9\uC758 \uC5C6\uC774 \uAC00\uC785 \uAC00\uB2A5 |
+| 3 | \uC544\uCF54\uB514\uC5B8 \uC815\uC0C1 \uB3D9\uC791 (Desktop) | \uBA54\uC774\uC800 | #5 | Web Desktop | - | UI \uAE68\uC9D0 |
+| 4 | \uBC14\uD140\uC2DC\uD2B8 \uC815\uC0C1 \uB3D9\uC791 (Mobile) | \uBA54\uC774\uC800 | #6 | Web Mobile | - | \uBAA8\uBC14\uC77C UX \uC800\uD558 |
+
+### 5.2 \uBC30\uD3EC \uCC28\uB2E8 \uC870\uAC74
+
+- \uBE14\uB85C\uCEE4/\uD06C\uB9AC\uD2F0\uCEEC \uB4F1\uAE09 \uBBF8\uCDA9\uC871 \uC2DC \uBC30\uD3EC \uBD88\uAC00
+- \uD544\uC218 \uB3D9\uC758 \uAC80\uC99D \uB85C\uC9C1 \uBBF8\uB3D9\uC791 \uC2DC \uBC30\uD3EC \uBD88\uAC00
+
+### 5.3 \uC870\uAC74\uBD80 \uBC30\uD3EC \uD310\uB2E8
+
+- \uBA54\uC774\uC800 \uB4F1\uAE09: \uC791\uC131\uC790 \uD310\uB2E8\uC5D0 \uB530\uB77C \uBC30\uD3EC \uAC00\uB2A5
+- \uB9C8\uC774\uB108 \uB4F1\uAE09: \uBC30\uD3EC \uAC00\uB2A5, \uD6C4\uC18D \uD328\uCE58\uB85C \uC218\uC815`;

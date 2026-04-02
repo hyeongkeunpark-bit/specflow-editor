@@ -79,8 +79,8 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 18%;
-    --input: 220 13% 18%;
+    --border: 220 13% 22%;
+    --input: 220 13% 22%;
     --ring: 212 92% 45%;
 
     --panel-header: 220 13% 12%;
@@ -97,7 +97,7 @@
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 220 13% 18%;
     --sidebar-accent-foreground: 210 17% 90%;
-    --sidebar-border: 220 13% 18%;
+    --sidebar-border: 220 13% 22%;
     --sidebar-ring: 212 92% 45%;
   }
 }

@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Copy, Download, ZoomIn, ZoomOut, FileText, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
+import { containsSpecSection } from "@/lib/parser";
 
 interface SpecPanelProps {
   content: string;
@@ -81,7 +82,7 @@ const SpecPanel = ({ content, onClose }: SpecPanelProps) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {content ? (
+        {content && containsSpecSection(content) ? (
           <div
             className="markdown-body"
             style={{ fontSize: `${zoom}%` }}
