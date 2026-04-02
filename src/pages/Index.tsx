@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -11,7 +11,7 @@ import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { sendMessage } from "@/lib/api";
 import type { ChatMessage } from "@/lib/types";
-import { FileText, Code2, History, Copy, Download, Sun, Moon } from "lucide-react";
+import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | "history" | null;
@@ -31,7 +31,7 @@ const Index = () => {
   } = useSessionManager();
 
   const [activePanel, setActivePanel] = useState<SidePanel>("spec");
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const toggleTheme = () => {
@@ -56,7 +56,24 @@ const Index = () => {
         role: "ai",
         content: response.spec || response.text,
       };
-      setMessages((prev) => [...prev, aiMsg]);
+
+      const systemMessages: ChatMessage[] = [];
+      if (response.spec) {
+        systemMessages.push({
+          id: (Date.now() + 2).toString(),
+          role: "system",
+          content: "📝 Spec 업데이트됨",
+        });
+      }
+      if (response.html) {
+        systemMessages.push({
+          id: (Date.now() + 3).toString(),
+          role: "system",
+          content: "🖥️ Prototype 업데이트됨",
+        });
+      }
+
+      setMessages((prev) => [...prev, aiMsg, ...systemMessages]);
 
       // HTML만 있으면 Spec 유지, Spec만 있으면 Prototype 유지
       if (response.spec) setSpecContent(response.spec);
@@ -99,8 +116,68 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background flex relative">
-      {/* Icon Sidebar */}
-      <aside className="relative z-40 w-12 shrink-0 border-r bg-card flex flex-col items-center py-3 gap-1">
+      {/* Main Area: Chat + Preview */}
+      <div className="flex-1 min-w-0">
+        <ResizablePanelGroup direction="horizontal">
+          <ResizablePanel defaultSize={43} minSize={20} maxSize={60}>
+            <ChatPanel
+              messages={activeSession.messages}
+              onSend={handleSend}
+              isLoading={isLoading}
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onNewSession={createNewSession}
+              onSwitchSession={switchSession}
+              onDeleteSession={deleteSession}
+            />
+          </ResizablePanel>
+
+          <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
+
+          <ResizablePanel defaultSize={57} minSize={30}>
+            <PrototypePanel htmlContent={activeSession.htmlContent} />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+
+      {/* Resizable Side Panel - Right */}
+      {activePanel && (
+        <div className="h-full flex shrink-0" style={{ width: '30%', minWidth: '200px', maxWidth: '50%' }}>
+          <div className="relative w-1.5 cursor-col-resize group flex items-center justify-center hover:bg-primary/20 transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const panel = (e.target as HTMLElement).parentElement!;
+              const startWidth = panel.offsetWidth;
+              const container = panel.parentElement!;
+              const containerWidth = container.offsetWidth;
+              const onMouseMove = (ev: MouseEvent) => {
+                const diff = startX - ev.clientX;
+                const newWidth = Math.min(Math.max(startWidth + diff, 200), containerWidth * 0.5);
+                panel.style.width = `${newWidth}px`;
+              };
+              const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+              };
+              document.addEventListener('mousemove', onMouseMove);
+              document.addEventListener('mouseup', onMouseUp);
+            }}
+          >
+            <div className="w-px h-8 bg-border group-hover:bg-primary/50 transition-colors rounded-full" />
+          </div>
+          <div className="flex-1 min-w-0 border-l bg-background">
+            {activePanel === "spec" && <SpecPanel content={activeSession.specContent} onClose={() => setActivePanel(null)} />}
+            {activePanel === "code" && <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} />}
+            {activePanel === "history" && (
+              <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onClose={() => setActivePanel(null)} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Icon Sidebar - Right */}
+      <aside className="relative z-40 w-12 shrink-0 border-l bg-card flex flex-col items-center py-3 gap-1">
         <SidebarButton
           icon={<FileText className="w-[18px] h-[18px]" />}
           label="Spec"
@@ -127,55 +204,6 @@ const Index = () => {
           onClick={toggleTheme}
         />
       </aside>
-
-      {/* Push Side Panel */}
-      {activePanel && (
-        <div className="h-full w-[40%] shrink-0 border-r bg-background">
-          {activePanel === "spec" && (
-            <SpecPanel
-              content={activeSession.specContent}
-              onClose={() => setActivePanel(null)}
-            />
-          )}
-          {activePanel === "code" && (
-            <CodeViewPanel
-              htmlContent={activeSession.htmlContent}
-              onClose={() => setActivePanel(null)}
-            />
-          )}
-          {activePanel === "history" && (
-            <HistoryPanel
-              snapshots={activeSession.snapshots}
-              onRestore={handleRestore}
-              onClose={() => setActivePanel(null)}
-            />
-          )}
-        </div>
-      )}
-
-      {/* Main Area: Chat + Preview */}
-      <div className="flex-1 min-w-0">
-        <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel defaultSize={40} minSize={20} maxSize={60}>
-            <ChatPanel
-              messages={activeSession.messages}
-              onSend={handleSend}
-              isLoading={isLoading}
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onNewSession={createNewSession}
-              onSwitchSession={switchSession}
-              onDeleteSession={deleteSession}
-            />
-          </ResizablePanel>
-
-          <ResizableHandle className="w-px bg-border hover:bg-primary/50 transition-colors data-[resize-handle-active]:bg-primary" />
-
-          <ResizablePanel defaultSize={60} minSize={30}>
-            <PrototypePanel htmlContent={activeSession.htmlContent} />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
     </div>
   );
 };
@@ -226,6 +254,15 @@ function CodeViewPanel({ htmlContent, onClose }: { htmlContent: string; onClose?
     <div className="flex flex-col h-full bg-background">
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-panel-header">
         <div className="flex items-center gap-2">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+              title="패널 접기"
+            >
+              <PanelRightClose className="w-4 h-4" />
+            </button>
+          )}
           <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-panel-header-foreground">Html</h2>
         </div>
