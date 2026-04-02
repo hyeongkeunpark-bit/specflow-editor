@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const data = await response.json();
-    const text = data.data?.choices?.[0]?.message?.content?.[0]?.text ?? "";
+    const text = data.choices?.[0]?.message?.content?.[0]?.text ?? "";
 
     return res.status(200).json({ text });
   } catch (error: any) {
