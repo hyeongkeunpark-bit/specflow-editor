@@ -7,6 +7,7 @@ export interface ChatResponse {
   text: string;
   spec: string | null;
   html: string | null;
+  chatText: string;
 }
 
 // ── 대화 이력 최적화 ──
@@ -69,8 +70,8 @@ async function fetchChat(message: string): Promise<ChatResponse> {
 
   const data = await res.json();
   const fullText: string = data.text ?? "";
-  const { spec, html } = parseResponse(fullText);
-  return { text: fullText, spec, html };
+  const { spec, html, chatText } = parseResponse(fullText);
+  return { text: fullText, spec, html, chatText };
 }
 
 /** 단일 호출 — 504 시 1회 자동 재시도 후 throw */

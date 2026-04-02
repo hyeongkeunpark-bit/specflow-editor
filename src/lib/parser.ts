@@ -188,23 +188,84 @@ export function containsSpecSection(text: string): boolean {
 export interface ParsedResponse {
   spec: string | null;
   html: string | null;
+  chatText: string;
 }
 
 /**
- * AI 응답을 Spec과 HTML로 파싱
- * - Spec 섹션 헤더("## 1.", "## 메타 정보" 등)가 없으면 spec = null (대화 응답)
- * - HTML만 있으면 spec = null (이전 Spec 유지)
- * - Spec만 있으면 html = null (이전 Prototype 유지)
+ * 텍스트를 ## 헤딩 블록(Spec)과 나머지(대화)로 분리
+ */
+function splitSpecAndChat(text: string): { specPart: string; chatPart: string } {
+  if (!text.trim()) return { specPart: "", chatPart: "" };
+
+  const lines = text.split("\n");
+  const specLines: string[] = [];
+  const chatLines: string[] = [];
+  let inSpecBlock = false;
+
+  for (const line of lines) {
+    // ## 헤더 시작 → Spec 블록 진입
+    if (/^##\s+/.test(line)) {
+      inSpecBlock = true;
+    }
+    // Spec 블록 중 빈 줄 다음에 ## 아닌 텍스트가 오면 → 대화 블록으로 전환
+    // 단, ### 이하 서브헤딩이나 테이블/리스트/코드블록은 Spec 블록 유지
+    else if (inSpecBlock && line.trim() === "") {
+      // 빈 줄은 일단 Spec에 넣고 다음 줄에서 판단
+      specLines.push(line);
+      continue;
+    } else if (inSpecBlock && line.trim() !== "") {
+      // Spec 블록 내부로 유지하는 패턴들
+      const isSpecContent =
+        /^###?\s+/.test(line) ||      // ### 서브헤딩
+        /^\|/.test(line.trim()) ||     // 테이블
+        /^[-*]\s/.test(line.trim()) || // 리스트
+        /^>\s/.test(line.trim()) ||    // 인용
+        /^```/.test(line.trim()) ||    // 코드블록
+        /^\d+\.\s/.test(line.trim()); // 번호 리스트
+
+      if (!isSpecContent) {
+        // --- 구분선 뒤의 대화형 텍스트
+        if (/^---\s*$/.test(line.trim())) {
+          inSpecBlock = false;
+          continue; // --- 자체는 버림
+        }
+        // Spec 블록 끝, 대화 블록으로 전환
+        inSpecBlock = false;
+      }
+    }
+
+    if (inSpecBlock) {
+      specLines.push(line);
+    } else {
+      chatLines.push(line);
+    }
+  }
+
+  return {
+    specPart: specLines.join("\n").trim(),
+    chatPart: chatLines.join("\n").trim(),
+  };
+}
+
+/**
+ * AI 응답을 Spec, HTML, 대화 텍스트로 파싱
+ * - spec: ## 헤딩 블록들만 (Spec 패널용)
+ * - html: HTML 블록 (Prototype 패널용)
+ * - chatText: 나머지 대화형 텍스트 (채팅 표시용)
  */
 export function parseResponse(text: string): ParsedResponse {
   const html = extractHtml(text);
   const rawSpec = extractSpec(text);
 
-  // Spec 헤더 패턴이 하나도 없으면 순수 대화 응답 → spec = null
-  const spec = rawSpec && containsSpecSection(rawSpec) ? rawSpec : null;
+  const { specPart, chatPart } = splitSpecAndChat(rawSpec);
+  const spec = specPart && containsSpecSection(specPart) ? specPart : null;
+
+  // chatText: 대화 부분이 있으면 사용, 없으면 원본 text (Spec만 있는 경우)
+  const chatText = chatPart || (spec ? "" : rawSpec);
 
   return {
     spec,
     html: html || null,
+    chatText,
   };
 }

@@ -71,11 +71,11 @@ const Index = () => {
 
       // ── 분할 생성 모드 ──
       if (isSpecGenerationTrigger(response.text)) {
-        // 트리거 응답은 채팅에만 표시 (response.text 사용, Spec 아님)
+        // 트리거 응답은 채팅에만 표시 (대화 부분만)
         const triggerMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: "ai",
-          content: response.text.trim(),
+          content: (response.chatText || response.text).trim(),
         };
         setMessages((prev) => [...prev, triggerMsg]);
 
@@ -128,22 +128,30 @@ const Index = () => {
 
       // ── 수정 모드: Spec이 존재 + 응답에 Spec 변경 있음 ──
       } else if (isSpecUpdate(response.spec)) {
-        const aiMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: "ai",
-          content: response.text.trim(),
-        };
-
         const cleaned = stripConversational(response.spec!);
         const merged = mergeSpec(activeSession.specContent, cleaned);
         const specChanged = merged !== activeSession.specContent;
 
         if (specChanged) {
-          setMessages((prev) => [
-            ...prev,
-            aiMsg,
-            { id: (Date.now() + 2).toString(), role: "system", content: "\uD83D\uDCDD Spec \uC5C5\uB370\uC774\uD2B8\uB428" },
-          ]);
+          // 대화 부분이 있으면 AI 메시지로 표시, 없으면 시스템 메시지만
+          const chatContent = response.chatText.trim();
+          if (chatContent) {
+            const aiMsg: ChatMessage = {
+              id: (Date.now() + 1).toString(),
+              role: "ai",
+              content: chatContent,
+            };
+            setMessages((prev) => [
+              ...prev,
+              aiMsg,
+              { id: (Date.now() + 2).toString(), role: "system", content: "\uD83D\uDCDD Spec \uC5C5\uB370\uC774\uD2B8\uB428" },
+            ]);
+          } else {
+            setMessages((prev) => [
+              ...prev,
+              { id: (Date.now() + 2).toString(), role: "system", content: "\uD83D\uDCDD Spec \uC5C5\uB370\uC774\uD2B8\uB428" },
+            ]);
+          }
           setSpecContent(merged);
           if (response.html) setHtmlContent(response.html);
 
@@ -157,8 +165,14 @@ const Index = () => {
             },
           ]);
         } else {
-          // merge 결과가 동일 → 변경 없음, 채팅만 표시
-          setMessages((prev) => [...prev, aiMsg]);
+          // merge 결과가 동일 → 변경 없음
+          const chatContent = response.chatText.trim();
+          if (chatContent) {
+            setMessages((prev) => [
+              ...prev,
+              { id: (Date.now() + 1).toString(), role: "ai", content: chatContent },
+            ]);
+          }
         }
 
       // ── 일반 대화 (검증 모드): Spec/히스토리 건드리지 않음 ──
@@ -166,7 +180,7 @@ const Index = () => {
         const aiMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: "ai",
-          content: response.text.trim(),
+          content: (response.chatText || response.text).trim(),
         };
         setMessages((prev) => [...prev, aiMsg]);
 

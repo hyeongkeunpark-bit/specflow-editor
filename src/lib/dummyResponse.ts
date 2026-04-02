@@ -14,6 +14,7 @@ export function matchDummy(userMessage: string): ChatResponse | null {
       text: "Spec \uC0DD\uC131\uC744 \uC2DC\uC791\uD569\uB2C8\uB2E4.",
       spec: null,
       html: null,
+      chatText: "Spec \uC0DD\uC131\uC744 \uC2DC\uC791\uD569\uB2C8\uB2E4.",
     };
   }
 
@@ -23,15 +24,17 @@ export function matchDummy(userMessage: string): ChatResponse | null {
       text: DUMMY_SECTION_3_UPDATED,
       spec: DUMMY_SECTION_3_UPDATED,
       html: null,
+      chatText: "3\uBC88 \uD50C\uB85C\uC6B0\uB97C \uBCC0\uACBD\uD588\uC2B5\uB2C8\uB2E4.",
     };
   }
 
-  // 4번 시나리��� 추가 테스트
+  // 4번 시나리오 추가 테스트
   if (msg.includes("\uC2DC\uB098\uB9AC\uC624") && (msg.includes("\uCD94\uAC00") || msg.includes("\uC0DD\uC131"))) {
     return {
       text: DUMMY_SECTION_4_UPDATED,
       spec: DUMMY_SECTION_4_UPDATED,
       html: null,
+      chatText: "4\uBC88 \uC2DC\uB098\uB9AC\uC624\uB97C \uC5C5\uB370\uC774\uD2B8\uD588\uC2B5\uB2C8\uB2E4.",
     };
   }
 
@@ -41,6 +44,7 @@ export function matchDummy(userMessage: string): ChatResponse | null {
       text: DUMMY_SECTION_5,
       spec: DUMMY_SECTION_5,
       html: null,
+      chatText: "5\uBC88\uC744 \uC0DD\uC131\uD588\uC2B5\uB2C8\uB2E4.",
     };
   }
 
