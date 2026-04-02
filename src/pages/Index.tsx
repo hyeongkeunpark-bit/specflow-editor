@@ -50,7 +50,7 @@ const Index = () => {
     setIsLoading(true);
 
     try {
-      const response = await sendMessage(text);
+      const response = await sendMessage(text, activeSession.messages);
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: "ai",
