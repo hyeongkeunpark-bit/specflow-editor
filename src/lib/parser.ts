@@ -91,8 +91,9 @@ export function normalizeSpec(text: string): string {
     // 해당 ## 헤더를 찾아서 내용 주입
     const headerPattern = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // 빈 헤더 또는 "거의 빈" 헤더 (태그 한 줄만 있는 경우) 감지
+    // 태그 라인: "> 📝 초안", "> ⚠️ 확인 필요" 등 (emoji를 직접 매칭하지 않고 패턴으로)
     const nearEmptyRegex = new RegExp(
-      `(^${headerPattern}[^\\n]*\\n)((?:[ \\t]*\\n|>\\s*[📝⚠️💡].*\\n|[ \\t]*\\n)*)(?=^##\\s|$)`,
+      `(^${headerPattern}[^\\n]*\\n)((?:[ \\t]*\\n|>\\s*.{0,4}(?:초안|확인|권장).*\\n|[ \\t]*\\n)*)(?=^##\\s|$)`,
       "m",
     );
     const match = result.match(nearEmptyRegex);
@@ -250,15 +251,90 @@ function splitSections(text: string): { key: number; header: string; body: strin
 /** 섹션 body에서 헤더를 제외한 실질 내용이 있는지 판단 */
 function hasSectionContent(body: string): boolean {
   const lines = body.split("\n");
-  // 첫 줄(## 헤더)과 빈 줄, 태그 한 줄(📝/⚠️/💡)만 있으면 "내용 없음"
+  // 첫 줄(## 헤더)과 빈 줄, 태그 한 줄만 있으면 "내용 없음"
   const contentLines = lines.filter((line) => {
     const t = line.trim();
     if (!t) return false;
     if (/^##\s+/.test(t)) return false;
-    if (/^>\s*[📝⚠️💡]/.test(t)) return false;
+    // "> 📝 초안", "> ⚠️ 확인 필요" 등 태그만 있는 줄
+    if (/^>\s*.{0,4}(?:초안|확인 필요|권장)/.test(t)) return false;
     return true;
   });
   return contentLines.length > 0;
+}
+
+/**
+ * ## 섹션 내부의 ### 하위 섹션을 merge
+ * incoming에 있는 ### 는 교체, incoming에 없는 ### 는 기존에서 유지
+ */
+function mergeSubSections(existingBody: string, incomingBody: string): string {
+  // ### 헤더가 없으면 단순 교체
+  if (!/^###\s+/m.test(existingBody) || !/^###\s+/m.test(incomingBody)) {
+    return incomingBody;
+  }
+
+  // ### 헤더로 분리
+  const splitBySub = (text: string) => {
+    const parts: { header: string; content: string }[] = [];
+    const regex = /^(###\s+.+)$/gm;
+    const matches: { index: number; line: string }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(text)) !== null) {
+      matches.push({ index: m.index, line: m[1] });
+    }
+
+    // ## 헤더 ~ 첫 ### 사이 (프리앰블)
+    if (matches.length > 0 && matches[0].index > 0) {
+      const pre = text.slice(0, matches[0].index).trim();
+      if (pre) parts.push({ header: "", content: pre });
+    } else if (matches.length === 0) {
+      return [{ header: "", content: text.trim() }];
+    }
+
+    for (let i = 0; i < matches.length; i++) {
+      const start = matches[i].index;
+      const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+      parts.push({ header: matches[i].line, content: text.slice(start, end).trim() });
+    }
+    return parts;
+  };
+
+  const existingSubs = splitBySub(existingBody);
+  const incomingSubs = splitBySub(incomingBody);
+
+  // 기존 ### 를 Map으로 인덱싱
+  const existingMap = new Map<string, string>();
+  for (const s of existingSubs) {
+    if (s.header) existingMap.set(s.header, s.content);
+  }
+
+  // incoming ### 로 교체
+  const incomingHeaders = new Set<string>();
+  for (const s of incomingSubs) {
+    if (s.header) {
+      existingMap.set(s.header, s.content);
+      incomingHeaders.add(s.header);
+    }
+  }
+
+  // 결과 조립: incoming의 프리앰블(## 헤더) + incoming ### + 기존에만 있는 ###
+  const incomingPreamble = incomingSubs.find((s) => !s.header)?.content || "";
+  const result: string[] = [];
+  if (incomingPreamble) result.push(incomingPreamble);
+
+  // incoming에 있는 ### 먼저 (incoming 순서 유지)
+  for (const s of incomingSubs) {
+    if (s.header) result.push(existingMap.get(s.header)!);
+  }
+
+  // 기존에만 있는 ### 추가 (incoming에 없는 것)
+  for (const s of existingSubs) {
+    if (s.header && !incomingHeaders.has(s.header)) {
+      result.push(s.content);
+    }
+  }
+
+  return result.join("\n\n");
 }
 
 /**
@@ -290,8 +366,9 @@ export function mergeSpec(existing: string, incoming: string): string {
         if (hasSectionContent(existing.body) && !hasSectionContent(inc.body)) {
           continue;
         }
-        // 교체
-        existingSections[existing.idx] = inc;
+        // ### 하위 섹션 단위 merge: incoming에 없는 ### 하위 섹션은 기존에서 유지
+        const mergedBody = mergeSubSections(existing.body, inc.body);
+        existingSections[existing.idx] = { ...inc, body: mergedBody };
       } else {
         // 삽입: 올바른 위치 찾기
         let insertIdx = existingSections.length;
