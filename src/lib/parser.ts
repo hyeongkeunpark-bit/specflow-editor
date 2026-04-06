@@ -111,10 +111,20 @@ export function normalizeSpec(text: string): string {
     }
   }
 
-  // 제목 복원
+  // 제목: AI가 출력하지 않았으면 메타 정보에서 추출하여 생성
+  if (!titleLine) {
+    const titleMatch = result.match(/\|\s*제목\s*\|\s*(.+?)\s*\|/);
+    if (titleMatch) {
+      titleLine = `# Product Spec: ${titleMatch[1].trim()}`;
+    }
+  }
   if (titleLine) {
     result = titleLine + "\n\n" + result;
   }
+
+  // 섹션 간 줄바꿈 정리: ## 헤딩 앞에 빈 줄 1개 보장
+  result = result.replace(/\n{3,}/g, "\n\n");
+  result = result.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
 
   return result;
 }
@@ -518,7 +528,20 @@ export function parseResponse(text: string): ParsedResponse {
   const rawSpec = extractSpec(normalized);
 
   const { specPart, chatPart } = splitSpecAndChat(rawSpec);
-  const spec = specPart && containsSpecSection(specPart) ? specPart : null;
+  let spec = specPart && containsSpecSection(specPart) ? specPart : null;
+
+  if (spec) {
+    // 제목이 없으면 메타 정보에서 추출하여 추가
+    if (!/^#\s+Product\s+Spec/im.test(spec)) {
+      const titleMatch = spec.match(/\|\s*제목\s*\|\s*(.+?)\s*\|/);
+      if (titleMatch) {
+        spec = `# Product Spec: ${titleMatch[1].trim()}\n\n${spec}`;
+      }
+    }
+    // 섹션 간 줄바꿈 정리
+    spec = spec.replace(/\n{3,}/g, "\n\n");
+    spec = spec.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
+  }
 
   // chatText: 대화 부분이 있으면 사용, 없으면 원본 text (Spec만 있는 경우)
   const chatText = chatPart || (spec ? "" : rawSpec);
