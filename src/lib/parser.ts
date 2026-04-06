@@ -60,12 +60,17 @@ export function normalizeSpec(text: string): string {
 
   for (const line of nonTitleLines) {
     const trimmed = line.trim();
-    // 스코프 요약 관련 패턴 (영역, 시나리오 커버리지) — 스킵 (이미 ## 스코프 요약에 있음)
-    if (/^\*\*영역\*\*|^>\s*\*\*영역\*\*|^시나리오\s*커버리지|^>\s*시나리오/.test(trimmed)) continue;
-    // 주간 리뷰 안내 — 스킵
+    // 스킵 패턴
+    if (/^\*\*영역\*\*|^>\s*\*\*영역\*\*|시나리오\s*커버리지/.test(trimmed)) continue;
     if (/주간\s*리뷰\s*공유\s*범위/.test(trimmed)) continue;
-    // 구현자 참조 안내 — 스킵
     if (/여기서부터는\s*구현자/.test(trimmed)) continue;
+    if (/^Prototype을|배포 차단|조건부 배포/.test(trimmed)) continue;
+
+    // --- 구분선 → 현재 섹션 수집 중단
+    if (trimmed === "---") {
+      currentSection = "";
+      continue;
+    }
 
     // 서브 요소 패턴 매칭 → 섹션 전환
     for (const sec of SECTION_SUB_ELEMENTS) {
@@ -79,7 +84,6 @@ export function normalizeSpec(text: string): string {
       if (!sectionBuckets.has(currentSection)) sectionBuckets.set(currentSection, []);
       sectionBuckets.get(currentSection)!.push(line);
     }
-    // currentSection이 없으면 (매핑 불가) → 버림 (대화 텍스트)
   }
 
   // splitSections 기반 주입 (regex보다 안정적)
