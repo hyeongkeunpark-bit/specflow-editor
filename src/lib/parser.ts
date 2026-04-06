@@ -185,6 +185,10 @@ export function stripConversational(text: string): string {
     /\n*계속 진행할까요\?[^\n]*/g,
     /\n*다른 섹션도 생성할까요\?[^\n]*/g,
     /\n*['"]\d+번 .*생성해줘['"][^\n]*/g,
+    /\n*---\n*\s*\n*Prototype을[^\n]*/g,
+    /\n*Prototype을 생성할까요\?[^\n]*/g,
+    /\n*Spec 확인 후[^\n]*/g,
+    /\n*수정할 부분이 있으면[^\n]*/g,
   ];
   for (const p of trailingPatterns) {
     result = result.replace(p, "");
@@ -455,68 +459,31 @@ export interface ParsedResponse {
 
 /**
  * 텍스트를 ## 헤딩 블록(Spec)과 나머지(대화)로 분리
+ * 단순 원칙: ## 또는 # Product Spec을 만나면 그 이후는 전부 Spec.
+ * 대화형 꼬리("Prototype을 생성할까요?" 등)는 stripConversational에서 제거.
  */
 function splitSpecAndChat(text: string): { specPart: string; chatPart: string } {
   if (!text.trim()) return { specPart: "", chatPart: "" };
 
   const lines = text.split("\n");
-  const specLines: string[] = [];
-  const chatLines: string[] = [];
-  let inSpecBlock = false;
-  let inCodeBlock = false;
+  let specStart = -1;
 
-  for (const line of lines) {
-    // 코드 블록 (```) 상태 추적
-    if (/^```/.test(line.trim())) {
-      inCodeBlock = !inCodeBlock;
-    }
-
-    // 코드 블록 안에서는 무조건 Spec 유지 (mermaid 등)
-    if (inCodeBlock && inSpecBlock) {
-      specLines.push(line);
-      continue;
-    }
-
-    // ## 헤더 또는 # Product Spec 제목 → Spec 블록 진입
-    if (/^##\s+/.test(line) || /^#\s+Product\s+Spec/i.test(line)) {
-      inSpecBlock = true;
-    }
-    // Spec 블록 중 빈 줄 → 일단 Spec에 넣고 다음 줄에서 판단
-    else if (inSpecBlock && line.trim() === "") {
-      specLines.push(line);
-      continue;
-    } else if (inSpecBlock && line.trim() !== "") {
-      // Spec 블록 내부로 유지하는 패턴들
-      const isSpecContent =
-        /^###?\s+/.test(line) ||      // ### 서브헤딩
-        /^\|/.test(line.trim()) ||     // 테이블
-        /^[-*]\s/.test(line.trim()) || // 리스트
-        /^>/.test(line.trim()) ||      // 인용 (빈 blockquote > 포함)
-        /^```/.test(line.trim()) ||    // 코드블록 시작/종료
-        /^\d+\.\s/.test(line.trim()) || // 번호 리스트
-        /^\*\*[^*]+\*\*/.test(line.trim()) || // **bold 라벨**
-        /^☐|^✅|^❌|^⚠️|^📝|^💡/.test(line.trim()); // 태그/아이콘
-
-      if (!isSpecContent) {
-        if (/^---\s*$/.test(line.trim())) {
-          inSpecBlock = false;
-          continue;
-        }
-        inSpecBlock = false;
-      }
-    }
-
-    if (inSpecBlock) {
-      specLines.push(line);
-    } else {
-      chatLines.push(line);
+  // 첫 ## 또는 # Product Spec 위치 찾기
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i]) || /^#\s+Product\s+Spec/i.test(lines[i])) {
+      specStart = i;
+      break;
     }
   }
 
-  return {
-    specPart: specLines.join("\n").trim(),
-    chatPart: chatLines.join("\n").trim(),
-  };
+  if (specStart < 0) {
+    return { specPart: "", chatPart: text.trim() };
+  }
+
+  const chatPart = lines.slice(0, specStart).join("\n").trim();
+  const specPart = lines.slice(specStart).join("\n").trim();
+
+  return { specPart, chatPart };
 }
 
 /**
