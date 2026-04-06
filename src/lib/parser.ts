@@ -195,10 +195,6 @@ export function stripConversational(text: string): string {
     /\n*계속 진행할까요\?[^\n]*/g,
     /\n*다른 섹션도 생성할까요\?[^\n]*/g,
     /\n*['"]\d+번 .*생성해줘['"][^\n]*/g,
-    /\n*---\n*\s*\n*Prototype을[^\n]*/g,
-    /\n*Prototype을 생성할까요\?[^\n]*/g,
-    /\n*Spec 확인 후[^\n]*/g,
-    /\n*수정할 부분이 있으면[^\n]*/g,
   ];
   for (const p of trailingPatterns) {
     result = result.replace(p, "");
@@ -509,6 +505,7 @@ export function parseResponse(text: string): ParsedResponse {
 
   const { specPart, chatPart } = splitSpecAndChat(rawSpec);
   let spec = specPart && containsSpecSection(specPart) ? specPart : null;
+  let specTrailingChat = "";
 
   if (spec) {
     // 제목이 없으면 메타 정보에서 추출하여 추가
@@ -521,10 +518,33 @@ export function parseResponse(text: string): ParsedResponse {
     // 섹션 간 줄바꿈 정리
     spec = spec.replace(/\n{3,}/g, "\n\n");
     spec = spec.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
+
+    // Spec 끝의 대화형 텍스트를 분리 → chatText로 이동
+    // 넓은 패턴(먼저 시작하는 문장)을 앞에 배치
+    const trailingChatPatterns = [
+      /\n*---\n*\s*\n*Spec 생성이 완료[\s\S]*/,
+      /\n*Spec 생성이 완료[\s\S]*/,
+      /\n*Spec 확인 후[\s\S]*/,
+      /\n*수정할 부분이 있으면[\s\S]*/,
+      /\n*확인 필요.*항목들을 채워[\s\S]*/,
+      /\n*---\n*\s*\n*Prototype을[\s\S]*/,
+      /\n*Prototype을 바로 생성할까요\?[\s\S]*/,
+      /\n*Prototype을 생성할까요\?[\s\S]*/,
+    ];
+    specTrailingChat = "";
+    for (const p of trailingChatPatterns) {
+      const match = spec.match(p);
+      if (match) {
+        specTrailingChat = match[0].replace(/^[\n-]+/, "").trim();
+        spec = spec.replace(p, "").trim();
+        break;
+      }
+    }
   }
 
-  // chatText: 대화 부분이 있으면 사용, 없으면 원본 text (Spec만 있는 경우)
-  const chatText = chatPart || (spec ? "" : rawSpec);
+  // chatText: preamble + spec 끝에서 분리된 대화
+  const parts = [chatPart, specTrailingChat].filter(Boolean);
+  const chatText = parts.join("\n\n") || (spec ? "" : rawSpec);
 
   return {
     spec,
