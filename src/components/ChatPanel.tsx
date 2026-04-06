@@ -52,11 +52,25 @@ const ChatPanel = ({
   const [isComposing, setIsComposing] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isAtBottomRef = useRef(true);
+
+  const checkIsAtBottom = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  };
+
+  const handleScroll = () => {
+    isAtBottomRef.current = checkIsAtBottom();
+  };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const handleSend = () => {
@@ -152,7 +166,7 @@ const ChatPanel = ({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <p className="text-chat-placeholder text-sm text-center max-w-sm leading-relaxed whitespace-pre-wrap">
