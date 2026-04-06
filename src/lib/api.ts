@@ -42,10 +42,10 @@ function formatConversation(history: ChatMessage[], currentMessage: string, spec
 
   const lines = formatHistoryLines(history);
   if (lines.length > 0) {
-    parts.push(`[\uC774\uC804 \uB300\uD654]\n${lines.join("\n")}`);
+    parts.push(`[이전 대화]\n${lines.join("\n")}`);
   }
 
-  parts.push(`[\uD604\uC7AC \uBA54\uC2DC\uC9C0]\n${currentMessage}`);
+  parts.push(`[현재 메시지]\n${currentMessage}`);
 
   return parts.join("\n\n");
 }
@@ -56,6 +56,63 @@ function is504(err: unknown): boolean {
   return err instanceof Error && err.message.includes("504");
 }
 
+/** SSE 스트리밍 fetch — 토큰 단위로 수신, 완료 후 파싱된 ChatResponse 반환 */
+async function fetchChatStream(
+  message: string,
+  onToken?: (token: string) => void,
+): Promise<ChatResponse> {
+  const res = await fetch("/api/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `API error: ${res.status}`);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const event of events) {
+      const trimmed = event.trim();
+      if (!trimmed || !trimmed.startsWith("data: ")) continue;
+      const data = trimmed.slice(6);
+      if (data === "[DONE]") continue;
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        continue;
+      }
+
+      if (parsed.error) throw new Error(parsed.error);
+
+      const content = parsed.content;
+      if (content) {
+        fullText += content;
+        onToken?.(content);
+      }
+    }
+  }
+
+  const { spec, html, chatText } = parseResponse(fullText);
+  return { text: fullText, spec, html, chatText };
+}
+
+/** 비스트리밍 fetch (폴백용) */
 async function fetchChat(message: string): Promise<ChatResponse> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -74,15 +131,15 @@ async function fetchChat(message: string): Promise<ChatResponse> {
   return { text: fullText, spec, html, chatText };
 }
 
-/** 단일 호출 — 504 시 1회 자동 재시도 후 throw */
-async function callChat(message: string): Promise<ChatResponse> {
+/** 단일 호출 — 스트리밍 우선, 504 시 1회 재시도 */
+async function callChat(message: string, onToken?: (token: string) => void): Promise<ChatResponse> {
   try {
-    return await fetchChat(message);
+    return await fetchChatStream(message, onToken);
   } catch (err) {
     if (!is504(err)) throw err;
   }
   // 재시도 1회
-  return fetchChat(message);
+  return fetchChatStream(message, onToken);
 }
 
 // ── 공개 API ──
@@ -91,13 +148,14 @@ export async function sendMessage(
   userMessage: string,
   history: ChatMessage[] = [],
   specContent?: string,
+  onToken?: (token: string) => void,
 ): Promise<ChatResponse> {
   // 테스트용 더미 매칭 (API 호출 없음)
   const dummy = matchDummy(userMessage);
   if (dummy) return dummy;
 
   const message = formatConversation(history, userMessage, specContent);
-  return callChat(message);
+  return callChat(message, onToken);
 }
 
 // ── Spec 생성 트리거 ──
@@ -106,34 +164,34 @@ export function isSpecGenerationTrigger(text: string): boolean {
   return text.includes("Spec 생성") || text.includes("Spec을 생성");
 }
 
-// ── Spec 10단계 분할 생성 ──
+// ── Spec 11단계 분할 생성 ──
 
 const SECTION_LABELS: string[] = [
-  "\uBA54\uD0C0 \uC815\uBCF4",
-  "1\uBC88 \uBB38\uC81C \uC815\uC758",
-  "2\uBC88 \uAC00\uC124",
-  "3\uBC88 \uD574\uACB0\uCC45\xB7\uAE30\uB2A5 \uC124\uACC4",
-  "4\uBC88 \uC2DC\uB098\uB9AC\uC624",
-  "4\uBC88 \uAD6C\uD604 \uADDC\uCE59",
-  "5\uBC88 \uC131\uACF5 \uAE30\uC900",
-  "6\uBC88 \uC81C\uC57D \uC870\uAC74",
-  "7\uBC88 \uD5A5\uD6C4 \uBC29\uD5A5",
-  "8\uBC88 \uB9AC\uBDF0 \uB85C\uADF8",
-  "\uD655\uC778\uC774 \uD544\uC694\uD55C \uD56D\uBAA9",
+  "메타 정보",
+  "1번 문제 정의",
+  "2번 가설",
+  "3번 해결책·기능 설계",
+  "4번 시나리오",
+  "4번 구현 규칙",
+  "5번 성공 기준",
+  "6번 제약 조건",
+  "7번 향후 방향",
+  "8번 리뷰 로그",
+  "확인이 필요한 항목",
 ];
 
 const SECTION_SUFFIXES: string[] = [
-  "\uBA54\uD0C0 \uC815\uBCF4\uC640 \uC2A4\uCF54\uD504 \uC694\uC57D\uC744 \uC0DD\uC131\uD574\uC918.",
-  "1\uBC88\uC744 \uC0DD\uC131\uD574\uC918.",
-  "2\uBC88\uC744 \uC0DD\uC131\uD574\uC918.",
-  "3\uBC88\uC744 \uC0DD\uC131\uD574\uC918.",
-  "4\uBC88 \uC2DC\uB098\uB9AC\uC624\uB9CC \uC0DD\uC131\uD574\uC918.",
-  "4\uBC88 \uAD6C\uD604 \uADDC\uCE59\uB9CC \uC0DD\uC131\uD574\uC918.",
-  "5\uBC88\uC744 \uC0DD\uC131\uD574\uC918.",
-  "6\uBC88\uC744 \uC0DD\uC131\uD574\uC918.",
-  "7\uBC88\uC744 \uC0DD\uC131\uD574\uC918.",
-  "8\uBC88\uC744 \uC0DD\uC131\uD574\uC918.",
-  "\uD655\uC778\uC774 \uD544\uC694\uD55C \uD56D\uBAA9\uC744 \uC0DD\uC131\uD574\uC918.",
+  "메타 정보와 스코프 요약을 생성해줘.",
+  "1번을 생성해줘.",
+  "2번을 생성해줘.",
+  "3번을 생성해줘.",
+  "4번 시나리오만 생성해줘.",
+  "4번 구현 규칙만 생성해줘.",
+  "5번을 생성해줘.",
+  "6번을 생성해줘.",
+  "7번을 생성해줘.",
+  "8번을 생성해줘.",
+  "확인이 필요한 항목을 생성해줘.",
 ];
 
 export interface SpecChunkedResult {
@@ -142,7 +200,7 @@ export interface SpecChunkedResult {
 }
 
 /**
- * Spec 11단계 분할 생성
+ * Spec 11단계 분할 생성 (각 단계는 스트리밍으로 호출)
  * onStart(step, label): 단계 시작
  * onChunk(step, chunk): Spec 본문 수신
  * onSkip(step, label): 504로 건너뛴 단계
@@ -176,11 +234,12 @@ export async function sendSpecChunked(
       contextLines.push(`AI: [이전 호출에서 ${completedSections.join(", ")}을 생성 완료]`);
     }
 
-    const instruction = " \uD574\uB2F9 \uC139\uC158 \uBCF8\uBB38\uB9CC \uCD9C\uB825\uD574. '\uB2E4\uC74C \uC139\uC158\uC744 \uC0DD\uC131\uD560\uAE4C\uC694?' \uAC19\uC740 \uC548\uB0B4\uB294 \uBD99\uC774\uC9C0 \uB9C8.";
+    const instruction = " 해당 섹션 본문만 출력해. '다음 섹션을 생성할까요?' 같은 안내는 붙이지 마.";
     const message =
-      `[이전 대화]\n${contextLines.join("\n")}\n\n[현재 메시지]\nSpec \uC0DD\uC131\uC744 \uACC4\uC18D\uD569\uB2C8\uB2E4. ${SECTION_SUFFIXES[i]}${instruction}`;
+      `[이전 대화]\n${contextLines.join("\n")}\n\n[현재 메시지]\nSpec 생성을 계속합니다. ${SECTION_SUFFIXES[i]}${instruction}`;
 
     try {
+      // 각 단계도 스트리밍으로 호출 (504 방지), 토큰 UI 표시는 안 함
       const response = await callChat(message);
       // Spec 섹션 헤더가 없는 응답은 대화형 텍스트 → Spec에 넣지 않음
       const rawChunk = response.spec;
@@ -212,18 +271,18 @@ export function buildFailureSummary(failedSteps: number[]): string {
   const success = total - failedSteps.length;
 
   if (failedSteps.length === 0) {
-    return "\u2705 Spec \uC0DD\uC131 \uC644\uB8CC";
+    return "✅ Spec 생성 완료";
   }
 
   const lines = [
-    `\u2705 Spec \uC0DD\uC131 \uC644\uB8CC (${success}/${total} \uC139\uC158)`,
-    `\u26A0\uFE0F \uC544\uB798 \uC139\uC158\uC740 \uC751\uB2F5 \uC2DC\uAC04 \uCD08\uACFC\uB85C \uC0DD\uC131\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB0B4\uC6A9\uC774 \uAE38\uC5B4\uC11C \uBC1C\uC0DD\uD55C \uBB38\uC81C\uC774\uBBC0\uB85C, \uB098\uB220\uC11C \uC694\uCCAD\uD558\uBA74 \uD574\uACB0\uB429\uB2C8\uB2E4.`,
+    `✅ Spec 생성 완료 (${success}/${total} 섹션)`,
+    `⚠️ 아래 섹션은 응답 시간 초과로 생성하지 못했습니다. 내용이 길어서 발생한 문제이므로, 나눠서 요청하면 해결됩니다.`,
   ];
 
   for (const idx of failedSteps) {
     const label = SECTION_LABELS[idx];
     const suffix = SECTION_SUFFIXES[idx];
-    lines.push(`- ${label}: '${suffix}' \uB85C \uC785\uB825`);
+    lines.push(`- ${label}: '${suffix}' 로 입력`);
   }
 
   return lines.join("\n");

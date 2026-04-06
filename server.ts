@@ -83,6 +83,124 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
+// ── SSE 스트리밍 엔드포인트 ──
+
+app.post("/api/chat/stream", async (req, res) => {
+  const { message } = req.body as { message: string };
+
+  if (!message) {
+    return res.status(400).json({ error: "message is required" });
+  }
+
+  const apiUrl = process.env.ENNOIA_API_URL;
+  const project = process.env.ENNOIA_PROJECT;
+  const apiKey = process.env.ENNOIA_API_KEY;
+  const hash = process.env.ENNOIA_HASH;
+
+  if (!apiUrl || !project || !apiKey || !hash) {
+    return res.status(500).json({ error: "Missing Ennoia API configuration" });
+  }
+
+  // SSE 응답 헤더
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const payload = JSON.stringify({
+    hash,
+    stream: true,
+    params: { user_message: message },
+  });
+
+  console.log(`[api/chat/stream] Sending ${payload.length} bytes to Ennoia (streaming)`);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Accept": "text/event-stream",
+        project,
+        apiKey,
+      },
+      body: payload,
+    });
+
+    if (!response.ok) {
+      console.error(`[api/chat/stream] Ennoia error: ${response.status}`);
+      res.write(`data: ${JSON.stringify({ error: `Ennoia API error (${response.status})` })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+      return;
+    }
+
+    const reader = (response.body as any).getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE 이벤트 분리 (double newline)
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+
+      for (const event of events) {
+        if (!event.trim()) continue;
+        const lines = event.trim().split("\n");
+        let eventType = "";
+        let data = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) eventType = line.slice(6).trim();
+          else if (line.startsWith("data:")) data = line.slice(5).trim();
+        }
+
+        if (eventType === "delta" && data) {
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              res.write(`data: ${JSON.stringify({ content })}\n\n`);
+            }
+          } catch {}
+        }
+      }
+    }
+
+    // 버퍼에 남은 이벤트 처리
+    if (buffer.trim()) {
+      const lines = buffer.trim().split("\n");
+      let eventType = "";
+      let data = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventType = line.slice(6).trim();
+        else if (line.startsWith("data:")) data = line.slice(5).trim();
+      }
+      if (eventType === "delta" && data) {
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        } catch {}
+      }
+    }
+
+    console.log("[api/chat/stream] Stream completed");
+    res.write("data: [DONE]\n\n");
+    res.end();
+  } catch (error: any) {
+    console.error("[api/chat/stream] Error:", error.message);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.write("data: [DONE]\n\n");
+    res.end();
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[server] API proxy running on http://localhost:${PORT}`);
 });

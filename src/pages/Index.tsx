@@ -60,24 +60,34 @@ const Index = () => {
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
+    // 스트리밍용 AI 메시지 placeholder
+    const aiMsgId = (Date.now() + 1).toString();
+    setMessages((prev) => [...prev, { id: aiMsgId, role: "ai" as const, content: "" }]);
+
     try {
-      // Spec이 있으면 수정 모드 → Spec 요약 포함, 없으면 일반 모드
+      // 스트리밍: 토큰 단위로 AI 메시지 업데이트
       const response = await sendMessage(
         text,
         activeSession.messages,
         activeSession.specContent || undefined,
+        (token) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiMsgId ? { ...m, content: m.content + token } : m,
+            ),
+          );
+        },
       );
 
       // ── 분할 생성 모드 ──
       if (isSpecGenerationTrigger(response.text)) {
-        // 트리거 응답은 채팅에만 표시 (대화 부분만)
-        const triggerMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: "ai",
-          content: (response.chatText || response.text).trim(),
-        };
-        setMessages((prev) => [...prev, triggerMsg]);
+        // 스트리밍 메시지를 chatText로 교체
+        const triggerContent = (response.chatText || response.text).trim();
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: triggerContent } : m)),
+        );
 
+        const triggerMsg: ChatMessage = { id: aiMsgId, role: "ai", content: triggerContent };
         const historyForChunked = [...activeSession.messages, userMsg, triggerMsg];
         let runningSpec = activeSession.specContent;
         const specBefore = activeSession.specContent;
@@ -100,7 +110,7 @@ const Index = () => {
               {
                 id: `spec-skip-${step}-${Date.now()}`,
                 role: "system",
-                content: `\u26A0\uFE0F ${label} \uC0DD\uC131 \uC911 \uC751\uB2F5 \uC2DC\uAC04\uC774 \uCD08\uACFC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uAC74\uB108\uB6F0\uACE0 \uB2E4\uC74C\uC73C\uB85C \uC9C4\uD589\uD569\uB2C8\uB2E4.`,
+                content: `⚠️ ${label} 생성 중 응답 시간이 초과되었습니다. 건너뛰고 다음으로 진행합니다.`,
               },
             ]);
           },
@@ -120,7 +130,7 @@ const Index = () => {
               spec: runningSpec,
               html: activeSession.htmlContent,
               timestamp: Date.now(),
-              summary: "\uCD08\uAE30 \uC0DD\uC131",
+              summary: "초기 생성",
             },
           ]);
         }
@@ -133,23 +143,18 @@ const Index = () => {
         const specChanged = merged !== prevSpec;
 
         if (specChanged) {
-          // 대화 부분이 있으면 AI 메시지로 표시, 없으면 시스템 메시지만
           const chatContent = response.chatText.trim();
           if (chatContent) {
-            const aiMsg: ChatMessage = {
-              id: (Date.now() + 1).toString(),
-              role: "ai",
-              content: chatContent,
-            };
+            // 스트리밍 메시지를 chatText로 교체 + 시스템 메시지 추가
             setMessages((prev) => [
-              ...prev,
-              aiMsg,
-              { id: (Date.now() + 2).toString(), role: "system", content: "\uD83D\uDCDD Spec \uC5C5\uB370\uC774\uD2B8\uB428" },
+              ...prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
+              { id: (Date.now() + 2).toString(), role: "system", content: "📝 Spec 업데이트됨" },
             ]);
           } else {
+            // chatText 없으면 스트리밍 메시지 제거 + 시스템 메시지만
             setMessages((prev) => [
-              ...prev,
-              { id: (Date.now() + 2).toString(), role: "system", content: "\uD83D\uDCDD Spec \uC5C5\uB370\uC774\uD2B8\uB428" },
+              ...prev.filter((m) => m.id !== aiMsgId),
+              { id: (Date.now() + 2).toString(), role: "system", content: "📝 Spec 업데이트됨" },
             ]);
           }
           setSpecContent(merged);
@@ -165,44 +170,45 @@ const Index = () => {
             },
           ]);
         } else {
-          // merge 결과가 동일 → 변경 없음
+          // merge 결과가 동일 → 변경 없음, chatText로 교체
           const chatContent = response.chatText.trim();
           if (chatContent) {
-            setMessages((prev) => [
-              ...prev,
-              { id: (Date.now() + 1).toString(), role: "ai", content: chatContent },
-            ]);
+            setMessages((prev) =>
+              prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
+            );
+          } else {
+            setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
           }
         }
 
       // ── 일반 대화 (검증 모드): Spec/히스토리 건드리지 않음 ──
       } else {
-        const aiMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: "ai",
-          content: (response.chatText || response.text).trim(),
-        };
-        setMessages((prev) => [...prev, aiMsg]);
+        // 스트리밍 메시지를 chatText로 교체
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId
+              ? { ...m, content: (response.chatText || response.text).trim() }
+              : m,
+          ),
+        );
 
         // HTML만 왔을 때는 반영 (Prototype 업데이트)
         if (response.html) {
           setHtmlContent(response.html);
           setMessages((prev) => [
             ...prev,
-            { id: (Date.now() + 3).toString(), role: "system", content: "\uD83D\uDDA5\uFE0F Prototype \uC5C5\uB370\uC774\uD2B8\uB428" },
+            { id: (Date.now() + 3).toString(), role: "system", content: "🖥️ Prototype 업데이트됨" },
           ]);
         }
-        // 검증 모드에서는 Spec 패널 & 히스토리 변경 없음
       }
     } catch (err) {
-      const errMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "ai",
-        content: err instanceof Error
-          ? `\uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4: ${err.message}`
-          : "\uC694\uCCAD \uCC98\uB9AC \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.",
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      // 스트리밍 메시지를 에러 내용으로 교체
+      const errContent = err instanceof Error
+        ? `오류가 발생했습니다: ${err.message}`
+        : "요청 처리 중 오류가 발생했습니다. 다시 시도해주세요.";
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
+      );
     } finally {
       setIsLoading(false);
     }
