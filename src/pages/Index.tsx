@@ -10,7 +10,7 @@ import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { sendMessage, isSpecGenerationTrigger, sendSpecChunked, buildFailureSummary } from "@/lib/api";
-import { mergeSpec, stripConversational } from "@/lib/parser";
+import { mergeSpec, stripConversational, generateChangeSummary } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
@@ -46,10 +46,9 @@ const Index = () => {
     return !!activeSession.specContent && !!responseSpec;
   };
 
-  /** 유저 요청 텍스트에서 변경 요약을 생성 */
-  const summarizeChange = (userText: string): string => {
-    if (userText.length <= 40) return userText;
-    return userText.slice(0, 40) + "...";
+  /** 이전/이후 Spec을 비교하여 변경 요약 생성 */
+  const summarizeChange = (prevSpec: string, newSpec: string): string => {
+    return generateChangeSummary(prevSpec, newSpec);
   };
 
   const handleSend = useCallback(async (text: string) => {
@@ -129,8 +128,9 @@ const Index = () => {
       // ── 수정 모드: Spec이 존재 + 응답에 Spec 변경 있음 ──
       } else if (isSpecUpdate(response.spec)) {
         const cleaned = stripConversational(response.spec!);
-        const merged = mergeSpec(activeSession.specContent, cleaned);
-        const specChanged = merged !== activeSession.specContent;
+        const prevSpec = activeSession.specContent;
+        const merged = mergeSpec(prevSpec, cleaned);
+        const specChanged = merged !== prevSpec;
 
         if (specChanged) {
           // 대화 부분이 있으면 AI 메시지로 표시, 없으면 시스템 메시지만
@@ -161,7 +161,7 @@ const Index = () => {
               spec: merged,
               html: response.html || activeSession.htmlContent,
               timestamp: Date.now(),
-              summary: summarizeChange(text),
+              summary: summarizeChange(prevSpec, merged),
             },
           ]);
         } else {

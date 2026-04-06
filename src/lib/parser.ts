@@ -185,6 +185,42 @@ export function containsSpecSection(text: string): boolean {
   return SECTION_ORDER.some((pattern) => pattern.test(text));
 }
 
+/**
+ * 이전 Spec과 새 Spec을 비교하여 변경 요약을 생성
+ * 예: "1. 문제 정의, 4. 시나리오 수정 / 8. 메트릭 추가"
+ */
+export function generateChangeSummary(prevSpec: string, newSpec: string): string {
+  if (!prevSpec.trim()) return "초기 생성";
+
+  const prevSections = splitSections(prevSpec);
+  const newSections = splitSections(newSpec);
+
+  const prevMap = new Map<number, string>();
+  for (const s of prevSections) {
+    if (s.key >= 0) prevMap.set(s.key, s.body);
+  }
+
+  const modified: string[] = [];
+  const added: string[] = [];
+
+  for (const s of newSections) {
+    if (s.key < 0) continue;
+    const sectionName = s.header.replace(/^##\s+/, "").trim();
+    const prev = prevMap.get(s.key);
+    if (prev === undefined) {
+      added.push(sectionName);
+    } else if (prev !== s.body) {
+      modified.push(sectionName);
+    }
+  }
+
+  const parts: string[] = [];
+  if (modified.length > 0) parts.push(modified.join(", ") + " 수정");
+  if (added.length > 0) parts.push(added.join(", ") + " 추가");
+
+  return parts.join(" / ") || "변경 없음";
+}
+
 export interface ParsedResponse {
   spec: string | null;
   html: string | null;
