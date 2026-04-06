@@ -2,6 +2,123 @@
  * AI 응답 텍스트에서 HTML과 Spec을 분리하는 파서
  */
 
+// ── Spec 정규화: AI가 ## 헤더 없이 출력한 내용을 올바른 섹션에 배치 ──
+
+/** 섹션별 서브 요소 패턴 — 고아 콘텐츠를 섹션에 매핑할 때 사용 */
+const SECTION_SUB_ELEMENTS: { sectionHeader: string; patterns: RegExp[] }[] = [
+  {
+    sectionHeader: "## 1. 문제",
+    patterns: [/^\*\*타겟\s*유저\*\*/, /^\*\*문제\s*정의\*\*/, /^\*\*근거\*\*/],
+  },
+  {
+    sectionHeader: "## 2. 가설",
+    patterns: [/^\*\*IF\*\*|^>\s*\*\*IF\*\*/, /^\*\*현재\s*데이터\*\*/, /^\*\*KR\*\*/, /^\*\*상위\s*KR\*\*/],
+  },
+  {
+    sectionHeader: "## 3. 해결책",
+    patterns: [/^\*\*Before.*After\*\*|^Before.*After/, /^###\s+사용자\s*플로우/, /^###\s+플랫폼별/, /^###\s+Prototype/, /^###\s+화면별\s+변경점/, /^###\s+UI\s+기획/],
+  },
+];
+
+/**
+ * AI 응답을 정규화: ## 헤더 없이 출력된 Spec 내용을 올바른 ## 섹션에 삽입
+ * - AI가 정상적으로 ## 구조를 따랐으면 아무 것도 안 함
+ * - # Product Spec 제목을 보존
+ */
+export function normalizeSpec(text: string): string {
+  // ## 헤더가 하나도 없으면 정규화 불필요
+  const firstH2 = text.search(/^##\s+/m);
+  if (firstH2 < 0) return text;
+
+  // 첫 ## 이전 고아 콘텐츠 추출
+  const preamble = text.slice(0, firstH2);
+  const rest = text.slice(firstH2);
+
+  // 고아 콘텐츠에 Spec 서브 요소 패턴이 없으면 정규화 불필요
+  const preambleLines = preamble.split("\n");
+  const hasSpecPattern = preambleLines.some((line) =>
+    SECTION_SUB_ELEMENTS.some((sec) =>
+      sec.patterns.some((p) => p.test(line.trim())),
+    ),
+  );
+  if (!hasSpecPattern) return text;
+
+  // # Product Spec 제목 추출
+  let titleLine = "";
+  const nonTitleLines: string[] = [];
+  for (const line of preambleLines) {
+    if (!titleLine && /^#\s+(?!#)/.test(line)) {
+      titleLine = line;
+    } else {
+      nonTitleLines.push(line);
+    }
+  }
+
+  // 고아 콘텐츠를 섹션별로 분류
+  const sectionBuckets = new Map<string, string[]>();
+  let currentSection = "";
+
+  for (const line of nonTitleLines) {
+    const trimmed = line.trim();
+    // 스코프 요약 관련 패턴 (영역, 시나리오 커버리지) — 스킵 (이미 ## 스코프 요약에 있음)
+    if (/^\*\*영역\*\*|^>\s*\*\*영역\*\*|^시나리오\s*커버리지|^>\s*시나리오/.test(trimmed)) continue;
+    // 주간 리뷰 안내 — 스킵
+    if (/주간\s*리뷰\s*공유\s*범위/.test(trimmed)) continue;
+    // 구현자 참조 안내 — 스킵
+    if (/여기서부터는\s*구현자/.test(trimmed)) continue;
+
+    // 서브 요소 패턴 매칭 → 섹션 전환
+    for (const sec of SECTION_SUB_ELEMENTS) {
+      if (sec.patterns.some((p) => p.test(trimmed))) {
+        currentSection = sec.sectionHeader;
+        break;
+      }
+    }
+
+    if (currentSection) {
+      if (!sectionBuckets.has(currentSection)) sectionBuckets.set(currentSection, []);
+      sectionBuckets.get(currentSection)!.push(line);
+    }
+    // currentSection이 없으면 (매핑 불가) → 버림 (대화 텍스트)
+  }
+
+  // 빈 ## 헤더에 고아 콘텐츠 주입
+  let result = rest;
+  for (const [header, lines] of sectionBuckets) {
+    const content = lines.join("\n").trim();
+    if (!content) continue;
+
+    // 빈 ## 헤더 찾기: "## N. xxx" 다음에 바로 다른 "##" 또는 EOF
+    const headerPattern = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const emptyHeaderRegex = new RegExp(
+      `(^${headerPattern}[^\\n]*\\n)(\\s*\\n)*(?=^##\\s|$)`,
+      "m",
+    );
+    const match = result.match(emptyHeaderRegex);
+    if (match) {
+      // 빈 헤더에 내용 주입
+      result = result.replace(emptyHeaderRegex, `$1\n${content}\n\n`);
+    } else {
+      // 헤더가 있지만 이미 내용이 있는 경우, 또는 헤더가 없는 경우
+      // 헤더가 아예 없으면 적절한 위치에 삽입
+      if (!result.includes(header)) {
+        // ## 4. 앞에 삽입 (1~3번이 없는 경우)
+        const insertBefore = result.search(/^##\s+4[.\s]/m);
+        if (insertBefore > 0) {
+          result = result.slice(0, insertBefore) + `${header}\n\n${content}\n\n` + result.slice(insertBefore);
+        }
+      }
+    }
+  }
+
+  // 제목 복원
+  if (titleLine) {
+    result = titleLine + "\n\n" + result;
+  }
+
+  return result;
+}
+
 /**
  * HTML 블록 추출
  * 1. ```html ... ``` 코드 블록
@@ -182,7 +299,8 @@ export function mergeSpec(existing: string, incoming: string): string {
  * 하나라도 매칭되면 Spec 본문으로 취급
  */
 export function containsSpecSection(text: string): boolean {
-  return SECTION_ORDER.some((pattern) => pattern.test(text));
+  return SECTION_ORDER.some((pattern) => pattern.test(text))
+    || /^#\s+Product\s+Spec/im.test(text);
 }
 
 /**
@@ -239,8 +357,8 @@ function splitSpecAndChat(text: string): { specPart: string; chatPart: string } 
   let inSpecBlock = false;
 
   for (const line of lines) {
-    // ## 헤더 시작 → Spec 블록 진입
-    if (/^##\s+/.test(line)) {
+    // ## 헤더 또는 # Product Spec 제목 → Spec 블록 진입
+    if (/^##\s+/.test(line) || /^#\s+Product\s+Spec/i.test(line)) {
       inSpecBlock = true;
     }
     // Spec 블록 중 빈 줄 다음에 ## 아닌 텍스트가 오면 → 대화 블록으로 전환
@@ -257,7 +375,9 @@ function splitSpecAndChat(text: string): { specPart: string; chatPart: string } 
         /^[-*]\s/.test(line.trim()) || // 리스트
         /^>\s/.test(line.trim()) ||    // 인용
         /^```/.test(line.trim()) ||    // 코드블록
-        /^\d+\.\s/.test(line.trim()); // 번호 리스트
+        /^\d+\.\s/.test(line.trim()) || // 번호 리스트
+        /^\*\*[^*]+\*\*/.test(line.trim()) || // **bold 라벨** (타겟 유저, KR 등)
+        /^☐|^✅|^❌|^⚠️|^📝|^💡/.test(line.trim()); // 태그/아이콘 시작
 
       if (!isSpecContent) {
         // --- 구분선 뒤의 대화형 텍스트
@@ -291,7 +411,8 @@ function splitSpecAndChat(text: string): { specPart: string; chatPart: string } 
  */
 export function parseResponse(text: string): ParsedResponse {
   const html = extractHtml(text);
-  const rawSpec = extractSpec(text);
+  const normalized = normalizeSpec(text);
+  const rawSpec = extractSpec(normalized);
 
   const { specPart, chatPart } = splitSpecAndChat(rawSpec);
   const spec = specPart && containsSpecSection(specPart) ? specPart : null;
