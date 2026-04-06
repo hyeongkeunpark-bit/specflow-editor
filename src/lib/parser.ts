@@ -88,21 +88,20 @@ export function normalizeSpec(text: string): string {
     const content = lines.join("\n").trim();
     if (!content) continue;
 
-    // 빈 ## 헤더 찾기: "## N. xxx" 다음에 바로 다른 "##" 또는 EOF
+    // 해당 ## 헤더를 찾아서 내용 주입
     const headerPattern = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const emptyHeaderRegex = new RegExp(
-      `(^${headerPattern}[^\\n]*\\n)(\\s*\\n)*(?=^##\\s|$)`,
+    // 빈 헤더 또는 "거의 빈" 헤더 (태그 한 줄만 있는 경우) 감지
+    const nearEmptyRegex = new RegExp(
+      `(^${headerPattern}[^\\n]*\\n)((?:[ \\t]*\\n|>\\s*[📝⚠️💡].*\\n|[ \\t]*\\n)*)(?=^##\\s|$)`,
       "m",
     );
-    const match = result.match(emptyHeaderRegex);
+    const match = result.match(nearEmptyRegex);
     if (match) {
-      // 빈 헤더에 내용 주입
-      result = result.replace(emptyHeaderRegex, `$1\n${content}\n\n`);
+      // 빈/거의 빈 헤더에 내용 주입 (기존 태그 한 줄은 교체)
+      result = result.replace(nearEmptyRegex, `$1\n${content}\n\n`);
     } else {
-      // 헤더가 있지만 이미 내용이 있는 경우, 또는 헤더가 없는 경우
       // 헤더가 아예 없으면 적절한 위치에 삽입
       if (!result.includes(header)) {
-        // ## 4. 앞에 삽입 (1~3번이 없는 경우)
         const insertBefore = result.search(/^##\s+4[.\s]/m);
         if (insertBefore > 0) {
           result = result.slice(0, insertBefore) + `${header}\n\n${content}\n\n` + result.slice(insertBefore);
@@ -355,16 +354,26 @@ function splitSpecAndChat(text: string): { specPart: string; chatPart: string } 
   const specLines: string[] = [];
   const chatLines: string[] = [];
   let inSpecBlock = false;
+  let inCodeBlock = false;
 
   for (const line of lines) {
+    // 코드 블록 (```) 상태 추적
+    if (/^```/.test(line.trim())) {
+      inCodeBlock = !inCodeBlock;
+    }
+
+    // 코드 블록 안에서는 무조건 Spec 유지 (mermaid 등)
+    if (inCodeBlock && inSpecBlock) {
+      specLines.push(line);
+      continue;
+    }
+
     // ## 헤더 또는 # Product Spec 제목 → Spec 블록 진입
     if (/^##\s+/.test(line) || /^#\s+Product\s+Spec/i.test(line)) {
       inSpecBlock = true;
     }
-    // Spec 블록 중 빈 줄 다음에 ## 아닌 텍스트가 오면 → 대화 블록으로 전환
-    // 단, ### 이하 서브헤딩이나 테이블/리스트/코드블록은 Spec 블록 유지
+    // Spec 블록 중 빈 줄 → 일단 Spec에 넣고 다음 줄에서 판단
     else if (inSpecBlock && line.trim() === "") {
-      // 빈 줄은 일단 Spec에 넣고 다음 줄에서 판단
       specLines.push(line);
       continue;
     } else if (inSpecBlock && line.trim() !== "") {
@@ -374,18 +383,16 @@ function splitSpecAndChat(text: string): { specPart: string; chatPart: string } 
         /^\|/.test(line.trim()) ||     // 테이블
         /^[-*]\s/.test(line.trim()) || // 리스트
         /^>\s/.test(line.trim()) ||    // 인용
-        /^```/.test(line.trim()) ||    // 코드블록
+        /^```/.test(line.trim()) ||    // 코드블록 시작/종료
         /^\d+\.\s/.test(line.trim()) || // 번호 리스트
-        /^\*\*[^*]+\*\*/.test(line.trim()) || // **bold 라벨** (타겟 유저, KR 등)
-        /^☐|^✅|^❌|^⚠️|^📝|^💡/.test(line.trim()); // 태그/아이콘 시작
+        /^\*\*[^*]+\*\*/.test(line.trim()) || // **bold 라벨**
+        /^☐|^✅|^❌|^⚠️|^📝|^💡/.test(line.trim()); // 태그/아이콘
 
       if (!isSpecContent) {
-        // --- 구분선 뒤의 대화형 텍스트
         if (/^---\s*$/.test(line.trim())) {
           inSpecBlock = false;
-          continue; // --- 자체는 버림
+          continue;
         }
-        // Spec 블록 끝, 대화 블록으로 전환
         inSpecBlock = false;
       }
     }
