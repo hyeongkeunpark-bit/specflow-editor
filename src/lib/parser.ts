@@ -18,6 +18,10 @@ const SECTION_SUB_ELEMENTS: { sectionHeader: string; patterns: RegExp[] }[] = [
     sectionHeader: "## 3. 해결책",
     patterns: [/^\*\*Before.*After\*\*|^Before.*After/, /^###\s+사용자\s*플로우/, /^###\s+플랫폼별/, /^###\s+Prototype/, /^###\s+화면별\s+변경점/, /^###\s+UI\s+기획/],
   },
+  {
+    sectionHeader: "## 5. 성공 기준",
+    patterns: [/^다음 중 하나라도/, /배포 차단/, /^###\s+조건부\s*배포/, /^###\s+배포\s*차단/],
+  },
 ];
 
 /**
@@ -64,7 +68,7 @@ export function normalizeSpec(text: string): string {
     if (/^\*\*영역\*\*|^>\s*\*\*영역\*\*|시나리오\s*커버리지/.test(trimmed)) continue;
     if (/주간\s*리뷰\s*공유\s*범위/.test(trimmed)) continue;
     if (/여기서부터는\s*구현자/.test(trimmed)) continue;
-    if (/^Prototype을|배포 차단|조건부 배포/.test(trimmed)) continue;
+    if (/^Prototype을/.test(trimmed)) continue;
 
     // --- 구분선 → 현재 섹션 수집 중단
     if (trimmed === "---") {
@@ -97,11 +101,17 @@ export function normalizeSpec(text: string): string {
     const sectionIdx = sections.findIndex((s) => s.key === targetKey);
 
     if (sectionIdx >= 0) {
-      // 기존 섹션에 실질 내용이 없으면 → 고아 콘텐츠로 교체
       if (!hasSectionContent(sections[sectionIdx].body)) {
+        // 빈 섹션 → 고아 콘텐츠로 교체
         sections[sectionIdx] = {
           ...sections[sectionIdx],
           body: `${sections[sectionIdx].header}\n\n${content}`,
+        };
+      } else {
+        // 내용 있는 섹션 → 끝에 추가
+        sections[sectionIdx] = {
+          ...sections[sectionIdx],
+          body: `${sections[sectionIdx].body}\n\n${content}`,
         };
       }
     } else {
