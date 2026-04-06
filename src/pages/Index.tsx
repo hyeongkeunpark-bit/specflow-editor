@@ -9,7 +9,7 @@ import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
-import { sendMessage, isSpecGenerationTrigger, sendSpecChunked, buildFailureSummary } from "@/lib/api";
+import { sendMessage } from "@/lib/api";
 import { mergeSpec, stripConversational, generateChangeSummary } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon, PanelRightClose } from "lucide-react";
@@ -39,11 +39,6 @@ const Index = () => {
     const next = !isDark;
     setIsDark(next);
     document.documentElement.classList.toggle("dark", next);
-  };
-
-  /** Spec이 존재하는 상태에서 AI 응답에 Spec 변경이 있는지 판단 */
-  const isSpecUpdate = (responseSpec: string | null): boolean => {
-    return !!activeSession.specContent && !!responseSpec;
   };
 
   /** 이전/이후 Spec을 비교하여 변경 요약 생성 */
@@ -79,111 +74,83 @@ const Index = () => {
         },
       );
 
-      // ── 분할 생성 모드 ──
-      if (isSpecGenerationTrigger(response.text)) {
-        // 스트리밍 메시지를 chatText로 교체
-        const triggerContent = (response.chatText || response.text).trim();
-        setMessages((prev) =>
-          prev.map((m) => (m.id === aiMsgId ? { ...m, content: triggerContent } : m)),
-        );
+      if (response.spec) {
+        const cleaned = stripConversational(response.spec);
 
-        const triggerMsg: ChatMessage = { id: aiMsgId, role: "ai", content: triggerContent };
-        const historyForChunked = [...activeSession.messages, userMsg, triggerMsg];
-        let runningSpec = activeSession.specContent;
-        const specBefore = activeSession.specContent;
-
-        const { failedSteps } = await sendSpecChunked(
-          historyForChunked,
-          (step, label) => {
-            setMessages((prev) => [
-              ...prev,
-              { id: `spec-step-${step}-${Date.now()}`, role: "system", content: label },
-            ]);
-          },
-          (_step, chunk) => {
-            runningSpec = mergeSpec(runningSpec, chunk);
-            setSpecContent(runningSpec);
-          },
-          (step, label) => {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `spec-skip-${step}-${Date.now()}`,
-                role: "system",
-                content: `⚠️ ${label} 생성 중 응답 시간이 초과되었습니다. 건너뛰고 다음으로 진행합니다.`,
-              },
-            ]);
-          },
-        );
-
-        const summary = buildFailureSummary(failedSteps);
-        setMessages((prev) => [
-          ...prev,
-          { id: `spec-done-${Date.now()}`, role: "system", content: summary },
-        ]);
-
-        // Spec이 실제로 변경된 경우에만 버전 생성
-        if (runningSpec && runningSpec !== specBefore) {
-          setSnapshots((prev) => [
-            ...prev,
-            {
-              spec: runningSpec,
-              html: activeSession.htmlContent,
-              timestamp: Date.now(),
-              summary: "초기 생성",
-            },
-          ]);
-        }
-
-      // ── 수정 모드: Spec이 존재 + 응답에 Spec 변경 있음 ──
-      } else if (isSpecUpdate(response.spec)) {
-        const cleaned = stripConversational(response.spec!);
-        const prevSpec = activeSession.specContent;
-        const merged = mergeSpec(prevSpec, cleaned);
-        const specChanged = merged !== prevSpec;
-
-        if (specChanged) {
+        if (!activeSession.specContent) {
+          // ── 초기 생성: Spec이 없는 상태에서 새 Spec 수신 ──
           const chatContent = response.chatText.trim();
           if (chatContent) {
-            // 스트리밍 메시지를 chatText로 교체 + 시스템 메시지 추가
             setMessages((prev) => [
               ...prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
-              { id: (Date.now() + 2).toString(), role: "system", content: "📝 Spec 업데이트됨" },
+              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료" },
             ]);
           } else {
-            // chatText 없으면 스트리밍 메시지 제거 + 시스템 메시지만
             setMessages((prev) => [
               ...prev.filter((m) => m.id !== aiMsgId),
-              { id: (Date.now() + 2).toString(), role: "system", content: "📝 Spec 업데이트됨" },
+              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료" },
             ]);
           }
-          setSpecContent(merged);
+
+          setSpecContent(cleaned);
           if (response.html) setHtmlContent(response.html);
 
           setSnapshots((prev) => [
             ...prev,
             {
-              spec: merged,
+              spec: cleaned,
               html: response.html || activeSession.htmlContent,
               timestamp: Date.now(),
-              summary: summarizeChange(prevSpec, merged),
+              summary: "초기 생성",
             },
           ]);
+
         } else {
-          // merge 결과가 동일 → 변경 없음, chatText로 교체
-          const chatContent = response.chatText.trim();
-          if (chatContent) {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
-            );
+          // ── 수정 모드: 기존 Spec에 변경 사항 merge ──
+          const prevSpec = activeSession.specContent;
+          const merged = mergeSpec(prevSpec, cleaned);
+          const specChanged = merged !== prevSpec;
+
+          if (specChanged) {
+            const chatContent = response.chatText.trim();
+            if (chatContent) {
+              setMessages((prev) => [
+                ...prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
+                { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 업데이트됨" },
+              ]);
+            } else {
+              setMessages((prev) => [
+                ...prev.filter((m) => m.id !== aiMsgId),
+                { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 업데이트됨" },
+              ]);
+            }
+            setSpecContent(merged);
+            if (response.html) setHtmlContent(response.html);
+
+            setSnapshots((prev) => [
+              ...prev,
+              {
+                spec: merged,
+                html: response.html || activeSession.htmlContent,
+                timestamp: Date.now(),
+                summary: summarizeChange(prevSpec, merged),
+              },
+            ]);
           } else {
-            setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
+            // merge 결과가 동일 → 변경 없음
+            const chatContent = response.chatText.trim();
+            if (chatContent) {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
+              );
+            } else {
+              setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
+            }
           }
         }
 
       // ── 일반 대화 (검증 모드): Spec/히스토리 건드리지 않음 ──
       } else {
-        // 스트리밍 메시지를 chatText로 교체
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
@@ -192,17 +159,15 @@ const Index = () => {
           ),
         );
 
-        // HTML만 왔을 때는 반영 (Prototype 업데이트)
         if (response.html) {
           setHtmlContent(response.html);
           setMessages((prev) => [
             ...prev,
-            { id: (Date.now() + 3).toString(), role: "system", content: "🖥️ Prototype 업데이트됨" },
+            { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
           ]);
         }
       }
     } catch (err) {
-      // 스트리밍 메시지를 에러 내용으로 교체
       const errContent = err instanceof Error
         ? `오류가 발생했습니다: ${err.message}`
         : "요청 처리 중 오류가 발생했습니다. 다시 시도해주세요.";
