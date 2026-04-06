@@ -491,7 +491,7 @@ function splitSpecAndChat(text: string): { specPart: string; chatPart: string } 
         /^###?\s+/.test(line) ||      // ### 서브헤딩
         /^\|/.test(line.trim()) ||     // 테이블
         /^[-*]\s/.test(line.trim()) || // 리스트
-        /^>\s/.test(line.trim()) ||    // 인용
+        /^>/.test(line.trim()) ||      // 인용 (빈 blockquote > 포함)
         /^```/.test(line.trim()) ||    // 코드블록 시작/종료
         /^\d+\.\s/.test(line.trim()) || // 번호 리스트
         /^\*\*[^*]+\*\*/.test(line.trim()) || // **bold 라벨**
