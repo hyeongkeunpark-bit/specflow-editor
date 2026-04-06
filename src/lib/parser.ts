@@ -247,10 +247,25 @@ function splitSections(text: string): { key: number; header: string; body: strin
   return sections;
 }
 
+/** 섹션 body에서 헤더를 제외한 실질 내용이 있는지 판단 */
+function hasSectionContent(body: string): boolean {
+  const lines = body.split("\n");
+  // 첫 줄(## 헤더)과 빈 줄, 태그 한 줄(📝/⚠️/💡)만 있으면 "내용 없음"
+  const contentLines = lines.filter((line) => {
+    const t = line.trim();
+    if (!t) return false;
+    if (/^##\s+/.test(t)) return false;
+    if (/^>\s*[📝⚠️💡]/.test(t)) return false;
+    return true;
+  });
+  return contentLines.length > 0;
+}
+
 /**
  * 기존 Spec에 새 응답을 섹션 단위로 merge
  * - 새 응답의 각 섹션을 기존에서 찾아 교체, 없으면 올바른 위치에 삽입
  * - 새 응답에 없는 섹션은 그대로 유지
+ * - 빈/거의 빈 incoming 섹션은 기존 내용을 덮어쓰지 않음
  */
 export function mergeSpec(existing: string, incoming: string): string {
   if (!existing.trim()) return incoming;
@@ -271,6 +286,10 @@ export function mergeSpec(existing: string, incoming: string): string {
       // key가 있는 섹션: 교체 또는 삽입
       const existing = sectionMap.get(inc.key);
       if (existing) {
+        // 기존에 내용이 있는데 incoming이 빈/거의 빈 섹션이면 → 기존 유지 (덮어쓰기 방지)
+        if (hasSectionContent(existing.body) && !hasSectionContent(inc.body)) {
+          continue;
+        }
         // 교체
         existingSections[existing.idx] = inc;
       } else {
