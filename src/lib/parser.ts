@@ -82,34 +82,33 @@ export function normalizeSpec(text: string): string {
     // currentSection이 없으면 (매핑 불가) → 버림 (대화 텍스트)
   }
 
-  // 빈 ## 헤더에 고아 콘텐츠 주입
-  let result = rest;
-  for (const [header, lines] of sectionBuckets) {
-    const content = lines.join("\n").trim();
+  // splitSections 기반 주입 (regex보다 안정적)
+  const sections = splitSections(rest);
+  for (const [header, contentLines] of sectionBuckets) {
+    const content = contentLines.join("\n").trim();
     if (!content) continue;
 
-    // 해당 ## 헤더를 찾아서 내용 주입
-    const headerPattern = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // 빈 헤더 또는 "거의 빈" 헤더 (태그 한 줄만 있는 경우) 감지
-    // 태그 라인: "> 📝 초안", "> ⚠️ 확인 필요" 등 (emoji를 직접 매칭하지 않고 패턴으로)
-    const nearEmptyRegex = new RegExp(
-      `(^${headerPattern}[^\\n]*\\n)((?:[ \\t]*\\n|>\\s*.{0,4}(?:초안|확인|권장).*\\n|[ \\t]*\\n)*)(?=^##\\s|$)`,
-      "m",
-    );
-    const match = result.match(nearEmptyRegex);
-    if (match) {
-      // 빈/거의 빈 헤더에 내용 주입 (기존 태그 한 줄은 교체)
-      result = result.replace(nearEmptyRegex, `$1\n${content}\n\n`);
+    // 매칭되는 섹션 찾기: ## 2. 가설 등
+    const targetKey = SECTION_ORDER.findIndex((p) => p.test(header));
+    const sectionIdx = sections.findIndex((s) => s.key === targetKey);
+
+    if (sectionIdx >= 0) {
+      // 기존 섹션에 실질 내용이 없으면 → 고아 콘텐츠로 교체
+      if (!hasSectionContent(sections[sectionIdx].body)) {
+        sections[sectionIdx] = {
+          ...sections[sectionIdx],
+          body: `${sections[sectionIdx].header}\n\n${content}`,
+        };
+      }
     } else {
-      // 헤더가 아예 없으면 적절한 위치에 삽입
-      if (!result.includes(header)) {
-        const insertBefore = result.search(/^##\s+4[.\s]/m);
-        if (insertBefore > 0) {
-          result = result.slice(0, insertBefore) + `${header}\n\n${content}\n\n` + result.slice(insertBefore);
-        }
+      // 섹션이 없으면 ## 4 앞에 삽입
+      const insertIdx = sections.findIndex((s) => s.key >= 5); // key 5 = ## 4.
+      if (insertIdx >= 0) {
+        sections.splice(insertIdx, 0, { key: targetKey, header, body: `${header}\n\n${content}` });
       }
     }
   }
+  let result = sections.map((s) => s.body).join("\n\n");
 
   // 제목: AI가 출력하지 않았으면 메타 정보에서 추출하여 생성
   if (!titleLine) {
