@@ -517,6 +517,44 @@ function splitSpecAndChat(text: string): { specPart: string; chatPart: string } 
  */
 export function parseResponse(text: string): ParsedResponse {
   const html = extractHtml(text);
+
+  // ── 1차: 마커 기반 분리 (확실한 경계) ──
+  const SPEC_START = "<!-- SPEC_START -->";
+  const SPEC_END = "<!-- SPEC_END -->";
+
+  if (text.includes(SPEC_START)) {
+    const startIdx = text.indexOf(SPEC_START) + SPEC_START.length;
+    const endIdx = text.includes(SPEC_END) ? text.indexOf(SPEC_END) : text.length;
+
+    const chatBefore = text.slice(0, text.indexOf(SPEC_START)).trim();
+    let specRaw = text.slice(startIdx, endIdx).trim();
+    const chatAfter = text.includes(SPEC_END) ? text.slice(endIdx + SPEC_END.length).trim() : "";
+
+    // 제목 추가
+    if (specRaw && !/^#\s+Product\s+Spec/im.test(specRaw)) {
+      const titleMatch = specRaw.match(/\|\s*제목\s*\|\s*(.+?)\s*\|/);
+      if (titleMatch) {
+        specRaw = `# Product Spec: ${titleMatch[1].trim()}\n\n${specRaw}`;
+      }
+    }
+    // 줄바꿈 정리
+    specRaw = specRaw.replace(/\n{3,}/g, "\n\n");
+    specRaw = specRaw.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
+    specRaw = specRaw.replace(/\n\n(---)/g, "\n\n\n$1");
+
+    const chatText = [chatBefore, chatAfter].filter(Boolean).join("\n\n");
+
+    debugLog("parseResponse (마커)", {
+      hasMarker: true,
+      specLength: specRaw.length,
+      chatText: chatText || "(없음)",
+      specSections: specRaw.match(/^## .+/gm)?.join(", ") ?? "(없음)",
+    });
+
+    return { spec: specRaw || null, html: html || null, chatText };
+  }
+
+  // ── 2차: 폴백 — ## 기반 분리 (마커 없을 때) ──
   const normalized = normalizeSpec(text);
   const rawSpec = extractSpec(normalized);
 
@@ -524,21 +562,17 @@ export function parseResponse(text: string): ParsedResponse {
   let spec = specPart && containsSpecSection(specPart) ? specPart : null;
 
   if (spec) {
-    // 제목이 없으면 메타 정보에서 추출하여 추가
     if (!/^#\s+Product\s+Spec/im.test(spec)) {
       const titleMatch = spec.match(/\|\s*제목\s*\|\s*(.+?)\s*\|/);
       if (titleMatch) {
         spec = `# Product Spec: ${titleMatch[1].trim()}\n\n${spec}`;
       }
     }
-    // 섹션 간 줄바꿈 정리
     spec = spec.replace(/\n{3,}/g, "\n\n");
     spec = spec.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
-    // --- 앞에 빈 줄 추가 (Confluence 복사 시 빈 줄 반영)
     spec = spec.replace(/\n\n(---)/g, "\n\n\n$1");
   }
 
-  // chatText: 첫 ## 이전의 대화 텍스트
   const chatText = chatPart || (spec ? "" : rawSpec);
 
   debugLog("parseResponse", {

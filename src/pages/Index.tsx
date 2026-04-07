@@ -68,7 +68,7 @@ const Index = () => {
         (token) => {
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === aiMsgId ? { ...m, content: (m.content + token).trimStart() } : m,
+              m.id === aiMsgId ? { ...m, content: (m.content + token).trimStart().replace(/<!-- SPEC_START -->|<!-- SPEC_END -->/g, "") } : m,
             ),
           );
         },
