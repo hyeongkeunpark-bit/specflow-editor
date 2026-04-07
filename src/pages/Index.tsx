@@ -83,12 +83,12 @@ const Index = () => {
           if (chatContent) {
             setMessages((prev) => [
               ...prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
-              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료" },
+              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료. Prototype을 생성하려면 채팅으로 요청해 주세요." },
             ]);
           } else {
             setMessages((prev) => [
               ...prev.filter((m) => m.id !== aiMsgId),
-              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료" },
+              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료. Prototype을 생성하려면 채팅으로 요청해 주세요." },
             ]);
           }
 

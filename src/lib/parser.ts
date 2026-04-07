@@ -522,7 +522,6 @@ export function parseResponse(text: string): ParsedResponse {
 
   const { specPart, chatPart } = splitSpecAndChat(rawSpec);
   let spec = specPart && containsSpecSection(specPart) ? specPart : null;
-  let specTrailingChat = "";
 
   if (spec) {
     // 제목이 없으면 메타 정보에서 추출하여 추가
@@ -535,30 +534,12 @@ export function parseResponse(text: string): ParsedResponse {
     // 섹션 간 줄바꿈 정리
     spec = spec.replace(/\n{3,}/g, "\n\n");
     spec = spec.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
-    // --- 앞에 빈 줄 추가 (앱에서는 CSS로 간격, Confluence 복사 시 빈 줄 반영)
+    // --- 앞에 빈 줄 추가 (Confluence 복사 시 빈 줄 반영)
     spec = spec.replace(/\n\n(---)/g, "\n\n\n$1");
-
-    // Spec 끝의 대화형 텍스트를 분리: 마지막 ## 섹션 이후의 내용만 검사
-    // (spec 내부의 테이블/본문 텍스트를 잘못 매칭하지 않음)
-    const lastH2 = spec.lastIndexOf("\n## ");
-    if (lastH2 >= 0) {
-      const lastSection = spec.slice(lastH2);
-      // 마지막 ## 섹션 내에서 테이블/리스트가 끝난 뒤의 텍스트를 찾음
-      const afterLastContent = lastSection.search(/\n\n(?![\s|>#*\-\d])[^\n]+$/m);
-      if (afterLastContent >= 0) {
-        const tail = lastSection.slice(afterLastContent).trim();
-        // 대화형 텍스트인지 확인 (## 헤더가 아니고, 테이블이 아닌 일반 텍스트)
-        if (tail && !/^##\s/.test(tail) && !/^\|/.test(tail)) {
-          specTrailingChat = tail;
-          spec = spec.slice(0, lastH2 + afterLastContent).trim();
-        }
-      }
-    }
   }
 
-  // chatText: preamble + spec 끝에서 분리된 대화
-  const parts = [chatPart, specTrailingChat].filter(Boolean);
-  const chatText = parts.join("\n\n") || (spec ? "" : rawSpec);
+  // chatText: 첫 ## 이전의 대화 텍스트
+  const chatText = chatPart || (spec ? "" : rawSpec);
 
   debugLog("parseResponse", {
     inputLength: text.length,
@@ -566,7 +547,6 @@ export function parseResponse(text: string): ParsedResponse {
     specLength: spec?.length ?? 0,
     chatTextLength: chatText.length,
     chatText: chatText || "(없음)",
-    specTrailingChat: specTrailingChat || "(없음)",
     specSections: spec?.match(/^## .+/gm)?.join(", ") ?? "(없음)",
   });
 
