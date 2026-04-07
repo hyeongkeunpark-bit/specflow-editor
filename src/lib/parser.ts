@@ -1,6 +1,7 @@
 /**
  * AI 응답 텍스트에서 HTML과 Spec을 분리하는 파서
  */
+import { debugLog } from "./debug";
 
 // ── Spec 정규화: AI가 ## 헤더 없이 출력한 내용을 올바른 섹션에 배치 ──
 
@@ -45,7 +46,12 @@ export function normalizeSpec(text: string): string {
       sec.patterns.some((p) => p.test(line.trim())),
     ),
   );
-  if (!hasSpecPattern) return text;
+  if (!hasSpecPattern) {
+    debugLog("normalizeSpec", { result: "스킵 (preamble에 spec 패턴 없음)", preamble });
+    return text;
+  }
+
+  debugLog("normalizeSpec", { hasSpecPattern: true, preambleLength: preamble.length, restLength: rest.length });
 
   // # Product Spec 제목 추출
   let titleLine = "";
@@ -90,7 +96,11 @@ export function normalizeSpec(text: string): string {
     }
   }
 
-  // splitSections 기반 주입 (regex보다 안정적)
+  // splitSections 기반 주입
+  debugLog("normalizeSpec buckets", Object.fromEntries(
+    [...sectionBuckets.entries()].map(([k, v]) => [k, `${v.length}줄`]),
+  ));
+
   const sections = splitSections(rest);
   for (const [header, contentLines] of sectionBuckets) {
     const content = contentLines.join("\n").trim();
@@ -373,6 +383,13 @@ export function mergeSpec(existing: string, incoming: string): string {
   const existingSections = splitSections(existing);
   const incomingSections = splitSections(incoming);
 
+  debugLog("mergeSpec", {
+    existingSectionCount: existingSections.filter((s) => s.key >= 0).length,
+    incomingSectionCount: incomingSections.filter((s) => s.key >= 0).length,
+    existingSections: existingSections.filter((s) => s.key >= 0).map((s) => s.header).join(", "),
+    incomingSections: incomingSections.filter((s) => s.key >= 0).map((s) => s.header).join(", "),
+  });
+
   // 기존 섹션을 key로 인덱싱
   const sectionMap = new Map<number, { idx: number; body: string }>();
   existingSections.forEach((s, idx) => {
@@ -545,6 +562,16 @@ export function parseResponse(text: string): ParsedResponse {
   // chatText: preamble + spec 끝에서 분리된 대화
   const parts = [chatPart, specTrailingChat].filter(Boolean);
   const chatText = parts.join("\n\n") || (spec ? "" : rawSpec);
+
+  debugLog("parseResponse", {
+    inputLength: text.length,
+    hasSpec: !!spec,
+    specLength: spec?.length ?? 0,
+    chatTextLength: chatText.length,
+    chatText: chatText || "(없음)",
+    specTrailingChat: specTrailingChat || "(없음)",
+    specSections: spec?.match(/^## .+/gm)?.join(", ") ?? "(없음)",
+  });
 
   return {
     spec,
