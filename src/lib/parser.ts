@@ -538,24 +538,20 @@ export function parseResponse(text: string): ParsedResponse {
     // --- 앞에 빈 줄 추가 (앱에서는 CSS로 간격, Confluence 복사 시 빈 줄 반영)
     spec = spec.replace(/\n\n(---)/g, "\n\n\n$1");
 
-    // Spec 끝의 대화형 텍스트를 분리 → chatText로 이동
-    // 넓은 패턴(먼저 시작하는 문장)을 앞에 배치
-    const trailingChatPatterns = [
-      /\n*---\n*\s*\n*Spec 생성이 완료[\s\S]*/,
-      /\n*Spec 생성이 완료되었습니다[\s\S]*/,
-      /\n*Spec 초안이 완성[\s\S]*/,
-      /\n*Spec 초안 완성[\s\S]*/,
-      /\n*---\n*\s*\n*Prototype을[\s\S]*/,
-      /\n*Prototype을 바로 생성할까요\?[\s\S]*/,
-      /\n*Prototype을 생성할까요\?[\s\S]*/,
-    ];
-    specTrailingChat = "";
-    for (const p of trailingChatPatterns) {
-      const match = spec.match(p);
-      if (match) {
-        specTrailingChat = match[0].replace(/^[\n-]+/, "").trim();
-        spec = spec.replace(p, "").trim();
-        break;
+    // Spec 끝의 대화형 텍스트를 분리: 마지막 ## 섹션 이후의 내용만 검사
+    // (spec 내부의 테이블/본문 텍스트를 잘못 매칭하지 않음)
+    const lastH2 = spec.lastIndexOf("\n## ");
+    if (lastH2 >= 0) {
+      const lastSection = spec.slice(lastH2);
+      // 마지막 ## 섹션 내에서 테이블/리스트가 끝난 뒤의 텍스트를 찾음
+      const afterLastContent = lastSection.search(/\n\n(?![\s|>#*\-\d])[^\n]+$/m);
+      if (afterLastContent >= 0) {
+        const tail = lastSection.slice(afterLastContent).trim();
+        // 대화형 텍스트인지 확인 (## 헤더가 아니고, 테이블이 아닌 일반 텍스트)
+        if (tail && !/^##\s/.test(tail) && !/^\|/.test(tail)) {
+          specTrailingChat = tail;
+          spec = spec.slice(0, lastH2 + afterLastContent).trim();
+        }
       }
     }
   }
