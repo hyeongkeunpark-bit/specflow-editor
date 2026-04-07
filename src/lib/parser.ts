@@ -196,7 +196,7 @@ export function extractSpec(text: string): string {
 export function stripConversational(text: string): string {
   let result = text;
 
-  // 대화형 마무리 제거
+  // 대화형 마무리 제거 (spec 끝에 붙는 대화 문구)
   const trailingPatterns = [
     /\n*---\n*다음 섹션을[^\n]*/g,
     /\n*다음 섹션을 이어서 생성할까요\?[^\n]*/g,
@@ -205,6 +205,14 @@ export function stripConversational(text: string): string {
     /\n*계속 진행할까요\?[^\n]*/g,
     /\n*다른 섹션도 생성할까요\?[^\n]*/g,
     /\n*['"]\d+번 .*생성해줘['"][^\n]*/g,
+    // Spec 생성 완료 후 AI가 붙이는 trailing 대화
+    /\n*---\n*\s*\nSpec 생성이 완료[\s\S]*/g,
+    /\n*---\n*\s*\nPrototype을[\s\S]*/g,
+    /\n*Spec 생성이 완료[\s\S]*/g,
+    /\n*Spec 초안이 완성[\s\S]*/g,
+    /\n*Prototype을 생성할까요[\s\S]*/g,
+    /\n*Prototype을 바로 생성[\s\S]*/g,
+    /\n*확인이 필요한 항목이 \d+개[\s\S]*/g,
   ];
   for (const p of trailingPatterns) {
     result = result.replace(p, "");
@@ -522,13 +530,24 @@ export function parseResponse(text: string): ParsedResponse {
   const SPEC_START = "===SPEC===";
   const SPEC_END = "===SPEC_END===";
 
-  if (text.includes(SPEC_START)) {
-    const startIdx = text.indexOf(SPEC_START) + SPEC_START.length;
-    const endIdx = text.includes(SPEC_END) ? text.indexOf(SPEC_END) : text.length;
+  // 마커가 없으면 첫 ## 위치에 추가
+  let processed = text;
+  if (!processed.includes(SPEC_START)) {
+    const firstH = processed.search(/^#\s+/m);
+    if (firstH >= 0) {
+      processed = processed.slice(0, firstH) + SPEC_START + "\n" + processed.slice(firstH);
+      // 끝에 SPEC_END 추가
+      processed = processed.trimEnd() + "\n" + SPEC_END;
+    }
+  }
 
-    const chatBefore = text.slice(0, text.indexOf(SPEC_START)).trim();
-    let specRaw = text.slice(startIdx, endIdx).trim();
-    const chatAfter = text.includes(SPEC_END) ? text.slice(endIdx + SPEC_END.length).trim() : "";
+  if (processed.includes(SPEC_START)) {
+    const startIdx = processed.indexOf(SPEC_START) + SPEC_START.length;
+    const endIdx = processed.includes(SPEC_END) ? processed.indexOf(SPEC_END) : processed.length;
+
+    const chatBefore = processed.slice(0, processed.indexOf(SPEC_START)).trim();
+    let specRaw = processed.slice(startIdx, endIdx).trim();
+    const chatAfter = processed.includes(SPEC_END) ? processed.slice(endIdx + SPEC_END.length).trim() : "";
 
     // 제목 추가
     if (specRaw && !/^#\s+Product\s+Spec/im.test(specRaw)) {
