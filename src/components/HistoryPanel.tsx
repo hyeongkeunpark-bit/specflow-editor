@@ -67,9 +67,12 @@ const HistoryPanel = ({ snapshots, onRestore, onClose }: HistoryPanelProps) => {
           )}
         </div>
 
-        {/* Summary */}
+        {/* 변경 요청 내용 */}
         <div className="px-4 py-2 border-b border-border/50 bg-muted/20">
-          <p className="text-xs text-foreground/70">{snap.summary}</p>
+          <p className="text-[11px] font-medium text-muted-foreground mb-1">변경 요청</p>
+          <p className="text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed">
+            {snap.userMessage || snap.summary}
+          </p>
         </div>
 
         {/* Spec content */}

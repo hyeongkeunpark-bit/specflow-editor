@@ -179,7 +179,7 @@ const ChatPanel = ({
         {messages.map((msg) =>
           msg.role === "system" ? (
             <div key={msg.id} className="flex justify-center">
-              <span className="text-xs text-muted-foreground">{msg.content}</span>
+              <span className="text-sm text-muted-foreground">{msg.content}</span>
             </div>
           ) : (
             <div
@@ -222,7 +222,7 @@ const ChatPanel = ({
       {/* Footer notice */}
       <div className="px-3 pb-1">
         <p className="text-[10px] text-muted-foreground text-center">
-          대화 내용은 이 브라우저에 저장됩니다. 시크릿 모드이거나 브라우저 데이터를 삭제하면 사라질 수 있습니다.
+          대화 내용은 이 브라우저에 저장됩니다.<br />브라우저 데이터를 삭제하면 채팅 내역이 사라집니다.
         </p>
       </div>
 
@@ -254,9 +254,8 @@ const ChatPanel = ({
               setInput(e.currentTarget.value);
             }}
             onKeyDown={handleKeyDown}
-            placeholder={isLoading ? "응답을 기다리는 중..." : "메시지를 입력하세요..."}
+            placeholder={isLoading ? "다음 메시지를 미리 작성하세요..." : "메시지를 입력하세요..."}
             rows={1}
-            disabled={isLoading}
             className="flex-1 bg-transparent text-foreground text-sm resize-none outline-none placeholder:text-muted-foreground min-h-[24px] max-h-[160px] disabled:opacity-50"
           />
           <button

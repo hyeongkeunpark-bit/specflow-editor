@@ -10,7 +10,7 @@ import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { sendMessage } from "@/lib/api";
-import { mergeSpec, generateChangeSummary } from "@/lib/parser";
+import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
@@ -41,9 +41,10 @@ const Index = () => {
     document.documentElement.classList.toggle("dark", next);
   };
 
-  /** 이전/이후 Spec을 비교하여 변경 요약 생성 */
-  const summarizeChange = (prevSpec: string, newSpec: string): string => {
-    return generateChangeSummary(prevSpec, newSpec);
+  /** 유저 메시지 첫 줄을 변경 요약으로 사용 */
+  const summarizeChange = (userMessage: string): string => {
+    const firstLine = userMessage.split("\n")[0].trim();
+    return firstLine || "Spec 수정";
   };
 
   const handleSend = useCallback(async (text: string) => {
@@ -93,6 +94,7 @@ const Index = () => {
               html: response.html || activeSession.htmlContent,
               timestamp: Date.now(),
               summary: "초기 생성",
+              userMessage: text,
             },
           ]);
           setMessages((prev) => [
@@ -114,7 +116,8 @@ const Index = () => {
                 spec: merged,
                 html: response.html || activeSession.htmlContent,
                 timestamp: Date.now(),
-                summary: summarizeChange(prevSpec, merged),
+                summary: summarizeChange(text),
+                userMessage: text,
               },
             ]);
             setMessages((prev) => [

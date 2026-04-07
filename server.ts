@@ -9,10 +9,10 @@ const PORT = process.env.SERVER_PORT || 3001;
 app.use(express.json({ limit: "1mb" }));
 
 app.post("/api/chat", async (req, res) => {
-  const { message } = req.body as { message: string };
+  const { messages } = req.body as { messages: { role: string; content: string }[] };
 
-  if (!message) {
-    return res.status(400).json({ error: "message is required" });
+  if (!messages || messages.length === 0) {
+    return res.status(400).json({ error: "messages is required" });
   }
 
   const apiUrl = process.env.ENNOIA_API_URL;
@@ -24,9 +24,13 @@ app.post("/api/chat", async (req, res) => {
     return res.status(500).json({ error: "Missing Ennoia API configuration" });
   }
 
+  const lastUserMsg = messages[messages.length - 1].content;
+  const historyMessages = messages.slice(0, -1);
+
   const payload = JSON.stringify({
     hash,
-    params: { user_message: message },
+    messages: historyMessages.length > 0 ? historyMessages : undefined,
+    params: { user_message: lastUserMsg },
   });
 
   console.log(`[api/chat] Sending ${payload.length} bytes to Ennoia`);
@@ -86,10 +90,10 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { message } = req.body as { message: string };
+  const { messages } = req.body as { messages: { role: string; content: string }[] };
 
-  if (!message) {
-    return res.status(400).json({ error: "message is required" });
+  if (!messages || messages.length === 0) {
+    return res.status(400).json({ error: "messages is required" });
   }
 
   const apiUrl = process.env.ENNOIA_API_URL;
@@ -107,13 +111,18 @@ app.post("/api/chat/stream", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
+  // 마지막 user 메시지는 params.user_message로, 나머지는 messages 배열로
+  const lastUserMsg = messages[messages.length - 1].content;
+  const historyMessages = messages.slice(0, -1);
+
   const payload = JSON.stringify({
     hash,
     stream: true,
-    params: { user_message: message },
+    messages: historyMessages.length > 0 ? historyMessages : undefined,
+    params: { user_message: lastUserMsg },
   });
 
-  console.log(`[api/chat/stream] Sending ${payload.length} bytes to Ennoia (streaming)`);
+  console.log(`[api/chat/stream] Sending ${payload.length} bytes to Ennoia (streaming, ${messages.length} messages)`);
 
   try {
     const response = await fetch(apiUrl, {

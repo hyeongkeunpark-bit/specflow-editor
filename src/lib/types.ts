@@ -9,6 +9,7 @@ export interface Snapshot {
   html: string;
   timestamp: number;
   summary: string;
+  userMessage?: string;
 }
 
 export interface Session {

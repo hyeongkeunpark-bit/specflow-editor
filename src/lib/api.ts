@@ -1,6 +1,5 @@
 import { parseResponse } from "./parser";
 import { matchDummy } from "./dummyResponse";
-import { generateSpecSummary } from "./specSummary";
 import type { ChatMessage } from "./types";
 
 export interface ChatResponse {
@@ -10,43 +9,57 @@ export interface ChatResponse {
   chatText: string;
 }
 
-// ── 대화 이력 최적화 ──
+// ── messages 배열 구성 ──
 
-const MAX_HISTORY = 10;
-const MAX_AI_LENGTH = 500;
+interface ApiMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
-function truncateHistory(history: ChatMessage[]): ChatMessage[] {
-  return history
+const MAX_HISTORY = 20;
+
+/**
+ * 대화 이력을 Ennoia API용 messages 배열로 변환
+ * - system 메시지 제외
+ * - AI 응답에서 <spec> 태그 내용 제거 (현재 Spec을 별도로 보내므로 중복 방지)
+ * - 최근 MAX_HISTORY개만 유지
+ */
+function buildMessages(
+  history: ChatMessage[],
+  currentMessage: string,
+  specContent?: string,
+): ApiMessage[] {
+  const messages: ApiMessage[] = [];
+
+  // 대화 이력 (user/ai만, 최근 N개)
+  const relevant = history
     .filter((m) => m.role === "user" || m.role === "ai")
     .slice(-MAX_HISTORY);
-}
 
-function formatHistoryLines(history: ChatMessage[]): string[] {
-  return truncateHistory(history).map((m) => {
-    const content =
-      m.role === "ai" && m.content.length > MAX_AI_LENGTH
-        ? m.content.slice(0, MAX_AI_LENGTH) + "...(생략)"
-        : m.content;
-    return m.role === "user" ? `사용자: ${content}` : `AI: ${content}`;
-  });
-}
-
-function formatConversation(history: ChatMessage[], currentMessage: string, specContent?: string): string {
-  const parts: string[] = [];
-
-  if (specContent) {
-    const summary = generateSpecSummary(specContent);
-    if (summary) parts.push(summary);
+  for (const m of relevant) {
+    if (m.role === "user") {
+      messages.push({ role: "user", content: m.content });
+    } else {
+      // AI 응답에서 <spec> 블록 제거 → 대화 맥락만 유지
+      const cleaned = m.content.replace(/<spec>[\s\S]*?<\/spec>/g, "(Spec 내용 — 현재 버전 참조)").trim();
+      messages.push({ role: "assistant", content: cleaned });
+    }
   }
 
-  const lines = formatHistoryLines(history);
-  if (lines.length > 0) {
-    parts.push(`[이전 대화]\n${lines.join("\n")}`);
+  // 현재 Spec이 이미 이전 메시지에 포함되어 있는지 확인
+  // → 포함되어 있으면 중복 전송하지 않음 (토큰 절감)
+  // → Spec이 변경(merge, 복원 등)되었으면 새로 첨부
+  const specAlreadySent = specContent && messages.some(
+    (m) => m.role === "user" && m.content.includes(specContent),
+  );
+
+  let userContent = currentMessage;
+  if (specContent && !specAlreadySent) {
+    userContent = `[현재 Spec 전문]\n${specContent}\n\n[요청]\n${currentMessage}`;
   }
+  messages.push({ role: "user", content: userContent });
 
-  parts.push(`[현재 메시지]\n${currentMessage}`);
-
-  return parts.join("\n\n");
+  return messages;
 }
 
 // ── API 호출 ──
@@ -55,15 +68,15 @@ function is504(err: unknown): boolean {
   return err instanceof Error && err.message.includes("504");
 }
 
-/** SSE 스트리밍 fetch — 토큰 단위로 수신, 완료 후 파싱된 ChatResponse 반환 */
+/** SSE 스트리밍 fetch — messages 배열 전송, 토큰 단위로 수신 */
 async function fetchChatStream(
-  message: string,
+  messages: ApiMessage[],
   onToken?: (token: string) => void,
 ): Promise<ChatResponse> {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ messages }),
   });
 
   if (!res.ok) {
@@ -112,13 +125,13 @@ async function fetchChatStream(
 }
 
 /** 단일 호출 — 스트리밍 우선, 504 시 1회 재시도 */
-async function callChat(message: string, onToken?: (token: string) => void): Promise<ChatResponse> {
+async function callChat(messages: ApiMessage[], onToken?: (token: string) => void): Promise<ChatResponse> {
   try {
-    return await fetchChatStream(message, onToken);
+    return await fetchChatStream(messages, onToken);
   } catch (err) {
     if (!is504(err)) throw err;
   }
-  return fetchChatStream(message, onToken);
+  return fetchChatStream(messages, onToken);
 }
 
 // ── 공개 API ──
@@ -132,6 +145,6 @@ export async function sendMessage(
   const dummy = matchDummy(userMessage);
   if (dummy) return dummy;
 
-  const message = formatConversation(history, userMessage, specContent);
-  return callChat(message, onToken);
+  const messages = buildMessages(history, userMessage, specContent);
+  return callChat(messages, onToken);
 }
