@@ -122,8 +122,8 @@
   @apply text-foreground leading-relaxed;
 }
 .markdown-body h1 { font-size: 1.75em; @apply font-bold mb-4 mt-6 text-accent-foreground; }
-.markdown-body h2 { font-size: 1.4em; @apply font-semibold mb-3 mt-8 pt-4 border-t border-border text-accent-foreground; }
-.markdown-body h2:first-child { @apply mt-0 pt-0 border-t-0; }
+.markdown-body h2 { font-size: 1.4em; @apply font-semibold mb-3 mt-6 text-accent-foreground; }
+.markdown-body hr { @apply my-2 border-border; margin-top: 2.5em; }
 .markdown-body h3 { font-size: 1.15em; @apply font-semibold mb-2 mt-4 text-accent-foreground; }
 .markdown-body p { @apply mb-3; }
 .markdown-body ul { @apply list-disc pl-6 mb-3; }
