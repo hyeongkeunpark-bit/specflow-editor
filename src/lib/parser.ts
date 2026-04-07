@@ -519,8 +519,8 @@ export function parseResponse(text: string): ParsedResponse {
   const html = extractHtml(text);
 
   // ── 1차: 마커 기반 분리 (확실한 경계) ──
-  const SPEC_START = "<!-- SPEC_START -->";
-  const SPEC_END = "<!-- SPEC_END -->";
+  const SPEC_START = "===SPEC===";
+  const SPEC_END = "===SPEC_END===";
 
   if (text.includes(SPEC_START)) {
     const startIdx = text.indexOf(SPEC_START) + SPEC_START.length;
