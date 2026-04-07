@@ -138,6 +138,7 @@ app.post("/api/chat/stream", async (req, res) => {
     const reader = (response.body as any).getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let fullResponse = ""; // 디버그: 전체 응답 누적
 
     while (true) {
       const { done, value } = await reader.read();
@@ -163,6 +164,7 @@ app.post("/api/chat/stream", async (req, res) => {
             const parsed = JSON.parse(data);
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
+              fullResponse += content;
               res.write(`data: ${JSON.stringify({ content })}\n\n`);
             }
           } catch {}
@@ -191,6 +193,9 @@ app.post("/api/chat/stream", async (req, res) => {
     }
 
     console.log("[api/chat/stream] Stream completed");
+    console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
+    console.log(fullResponse.slice(0, 500));
+    console.log("전체 길이:", fullResponse.length, "자");
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error: any) {

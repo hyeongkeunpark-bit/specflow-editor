@@ -167,65 +167,6 @@ export function extractHtml(text: string): string | null {
   return null;
 }
 
-/**
- * HTML 블록을 제거한 나머지 = Spec 문서
- * 최초 ## 헤더 이전의 대화형 텍스트도 제거
- */
-export function extractSpec(text: string): string {
-  let spec = text.replace(/```html\s*\n[\s\S]*?```/g, "");
-  spec = spec.replace(/<!DOCTYPE html[\s\S]*?<\/html>/gi, "");
-  spec = spec.trim();
-
-  // ## 헤더가 있으면, 그 이전의 대화형 텍스트를 제거
-  // (# 제목은 유지 — "# Product Spec" 등)
-  const firstSectionHeader = spec.search(/^##\s+/m);
-  if (firstSectionHeader > 0) {
-    const preamble = spec.slice(0, firstSectionHeader).trim();
-    // # 으로 시작하는 제목이면 유지, 아니면 제거
-    if (preamble && !preamble.startsWith("#")) {
-      spec = spec.slice(firstSectionHeader);
-    }
-  }
-
-  return spec.trim();
-}
-
-/**
- * Spec 본문에서 대화형 텍스트를 제거
- */
-export function stripConversational(text: string): string {
-  let result = text;
-
-  // 대화형 마무리 제거 (spec 끝에 붙는 대화 문구)
-  const trailingPatterns = [
-    /\n*---\n*다음 섹션을[^\n]*/g,
-    /\n*다음 섹션을 이어서 생성할까요\?[^\n]*/g,
-    /\n*이어서 \d+번을? 생성할까요\?[^\n]*/g,
-    /\n*다음으로 넘어갈까요\?[^\n]*/g,
-    /\n*계속 진행할까요\?[^\n]*/g,
-    /\n*다른 섹션도 생성할까요\?[^\n]*/g,
-    /\n*['"]\d+번 .*생성해줘['"][^\n]*/g,
-    // Spec 생성 완료 후 AI가 붙이는 trailing 대화
-    /\n*---\n*\s*\nSpec 생성이 완료[\s\S]*/g,
-    /\n*---\n*\s*\nPrototype을[\s\S]*/g,
-    /\n*Spec 생성이 완료[\s\S]*/g,
-    /\n*Spec 초안이 완성[\s\S]*/g,
-    /\n*Prototype을 생성할까요[\s\S]*/g,
-    /\n*Prototype을 바로 생성[\s\S]*/g,
-    /\n*확인이 필요한 항목이 \d+개[\s\S]*/g,
-  ];
-  for (const p of trailingPatterns) {
-    result = result.replace(p, "");
-  }
-
-  // 대화형 시작 문구 제거 (첫 줄만)
-  result = result.replace(
-    /^(좋습니다[.!,]?\s*|네[,.]?\s*|알겠습니다[.!,]?\s*|물론입니다[.!,]?\s*|이어서\s+)/,
-    "",
-  );
-
-  return result.trim();
-}
 
 // ── Spec 섹션 merge ──
 
@@ -488,136 +429,97 @@ export interface ParsedResponse {
   chatText: string;
 }
 
+// ── Spec 추출 ──
+
+/** # Product Spec 제목이 없으면 메타 정보 테이블에서 추출하여 추가 */
+function ensureSpecTitle(spec: string): string {
+  if (/^#\s+Product\s+Spec/im.test(spec)) return spec;
+  const titleMatch = spec.match(/\|\s*제목\s*\|\s*(.+?)\s*\|/);
+  if (titleMatch) {
+    return `# Product Spec: ${titleMatch[1].trim()}\n\n${spec}`;
+  }
+  return spec;
+}
+
+/** Spec 줄바꿈 정리: 3줄 이상 → 2줄, ## 앞에 빈 줄 보장 */
+function normalizeSpecWhitespace(spec: string): string {
+  let result = spec.replace(/\n{3,}/g, "\n\n");
+  result = result.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
+  return result;
+}
+
 /**
- * 텍스트를 ## 헤딩 블록(Spec)과 나머지(대화)로 분리
- * 단순 원칙: ## 또는 # Product Spec을 만나면 그 이후는 전부 Spec.
- * 대화형 꼬리("Prototype을 생성할까요?" 등)는 stripConversational에서 제거.
+ * 알려진 섹션 패턴(SECTION_ORDER)에 매칭되는 블록만 추출
+ * <spec> 태그가 없을 때의 폴백 메커니즘
  */
-function splitSpecAndChat(text: string): { specPart: string; chatPart: string } {
-  if (!text.trim()) return { specPart: "", chatPart: "" };
+function extractKnownSections(text: string): string | null {
+  let cleaned = text
+    .replace(/```html\s*\n[\s\S]*?```/g, "")
+    .replace(/<!DOCTYPE html[\s\S]*?<\/html>/gi, "")
+    .trim();
 
-  const lines = text.split("\n");
-  let specStart = -1;
+  // normalizeSpec: ## 없이 출력된 내용을 올바른 섹션에 배치
+  cleaned = normalizeSpec(cleaned);
 
-  // 첫 ## 또는 # Product Spec 위치 찾기
-  for (let i = 0; i < lines.length; i++) {
-    if (/^##\s+/.test(lines[i]) || /^#\s+Product\s+Spec/i.test(lines[i])) {
-      specStart = i;
-      break;
-    }
-  }
+  const sections = splitSections(cleaned);
+  const specSections = sections.filter((s) => s.key >= 0);
 
-  if (specStart < 0) {
-    return { specPart: "", chatPart: text.trim() };
-  }
+  if (specSections.length === 0) return null;
 
-  const chatPart = lines.slice(0, specStart).join("\n").trim();
-  const specPart = lines.slice(specStart).join("\n").trim();
+  // # Product Spec 제목 추출
+  const titleMatch = cleaned.match(/^#\s+Product\s+Spec[^\n]*/m);
+  let result = titleMatch ? titleMatch[0] + "\n\n" : "";
+  result += specSections.map((s) => s.body).join("\n\n");
+  result = ensureSpecTitle(result.trim());
+  result = normalizeSpecWhitespace(result);
 
-  return { specPart, chatPart };
+  return result || null;
 }
 
 /**
  * AI 응답을 Spec, HTML, 대화 텍스트로 파싱
- * - spec: ## 헤딩 블록들만 (Spec 패널용)
- * - html: HTML 블록 (Prototype 패널용)
- * - chatText: 나머지 대화형 텍스트 (채팅 표시용)
+ *
+ * 원칙:
+ * - chatText = 전체 응답 (채팅에 그대로 표시)
+ * - spec = 문서로 반영될 내용만 추출
+ *
+ * Spec 추출 우선순위:
+ * 1차) <spec> 태그가 있으면 그 안의 내용
+ * 2차) 알려진 섹션 패턴(## 메타 정보, ## 1. 문제 등)에 매칭되는 블록
  */
 export function parseResponse(text: string): ParsedResponse {
   const html = extractHtml(text);
 
-  // ── 1차: 마커 기반 분리 (확실한 경계) ──
-  const SPEC_START = "===SPEC===";
-  const SPEC_END = "===SPEC_END===";
+  // chatText: 전체 응답에서 <spec> 태그와 HTML 블록만 제거 (내용은 유지)
+  const chatText = text
+    .replace(/<\/?spec>/g, "")
+    .replace(/```html\s*\n[\s\S]*?```/g, "")
+    .replace(/<!DOCTYPE html[\s\S]*?<\/html>/gi, "")
+    .trim();
 
-  // 마커가 없으면 첫 ## 위치에 추가
-  let processed = text;
-  if (!processed.includes(SPEC_START)) {
-    const firstH = processed.search(/^#{1,2}\s/m);
-    if (firstH >= 0) {
-      processed = processed.slice(0, firstH) + SPEC_START + "\n" + processed.slice(firstH);
-      // 끝에 SPEC_END 추가
-      processed = processed.trimEnd() + "\n" + SPEC_END;
-    }
-  }
+  // ── 1차: <spec> 태그로 Spec 추출 ──
+  const specTagMatch = text.match(/<spec>([\s\S]*?)<\/spec>/);
+  if (specTagMatch) {
+    let spec = specTagMatch[1].trim();
+    spec = ensureSpecTitle(spec);
+    spec = normalizeSpecWhitespace(spec);
 
-  if (processed.includes(SPEC_START)) {
-    const startIdx = processed.indexOf(SPEC_START) + SPEC_START.length;
-    const endIdx = processed.includes(SPEC_END) ? processed.indexOf(SPEC_END) : processed.length;
-
-    const chatBefore = processed.slice(0, processed.indexOf(SPEC_START)).trim();
-    let specRaw = processed.slice(startIdx, endIdx).trim();
-    const chatAfter = processed.includes(SPEC_END) ? processed.slice(endIdx + SPEC_END.length).trim() : "";
-
-    // 제목 추가
-    if (specRaw && !/^#\s+Product\s+Spec/im.test(specRaw)) {
-      const titleMatch = specRaw.match(/\|\s*제목\s*\|\s*(.+?)\s*\|/);
-      if (titleMatch) {
-        specRaw = `# Product Spec: ${titleMatch[1].trim()}\n\n${specRaw}`;
-      }
-    }
-    // 줄바꿈 정리
-    specRaw = specRaw.replace(/\n{3,}/g, "\n\n");
-    specRaw = specRaw.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
-    specRaw = specRaw.replace(/\n\n(---)/g, "\n\n\n$1");
-
-    // spec 끝의 trailing 텍스트 분리 → chatText로 이동
-    // spec은 마크다운 서식(|, >, #, -, *, ```)으로 끝남. 그 뒤 일반 문장 = chat
-    let specTrailing = "";
-    const specLines = specRaw.split("\n");
-    while (specLines.length > 0) {
-      const last = specLines[specLines.length - 1].trim();
-      if (!last || last === "---") { specLines.pop(); continue; }
-      if (/^[|>#\-*`\[]/.test(last) || /^#{1,3}\s/.test(last)) break;
-      specTrailing = specLines.pop()! + (specTrailing ? "\n" + specTrailing : "");
-    }
-    specRaw = specLines.join("\n").trim();
-
-    const chatText = [chatBefore, specTrailing, chatAfter].filter(Boolean).join("\n\n");
-
-    debugLog("parseResponse (마커)", {
-      hasMarker: true,
-      specLength: specRaw.length,
-      chatText: chatText || "(없음)",
-      specSections: specRaw.match(/^## .+/gm)?.join(", ") ?? "(없음)",
+    debugLog("parseResponse (<spec> 태그)", {
+      specLength: spec.length,
+      specSections: spec.match(/^## .+/gm)?.join(", ") ?? "(없음)",
     });
 
-    return { spec: specRaw || null, html: html || null, chatText };
+    return { spec: spec || null, html: html || null, chatText };
   }
 
-  // ── 2차: 폴백 — ## 기반 분리 (마커 없을 때) ──
-  const normalized = normalizeSpec(text);
-  const rawSpec = extractSpec(normalized);
+  // ── 2차: 알려진 섹션 패턴 매칭 (폴백) ──
+  const spec = extractKnownSections(text);
 
-  const { specPart, chatPart } = splitSpecAndChat(rawSpec);
-  let spec = specPart && containsSpecSection(specPart) ? specPart : null;
-
-  if (spec) {
-    if (!/^#\s+Product\s+Spec/im.test(spec)) {
-      const titleMatch = spec.match(/\|\s*제목\s*\|\s*(.+?)\s*\|/);
-      if (titleMatch) {
-        spec = `# Product Spec: ${titleMatch[1].trim()}\n\n${spec}`;
-      }
-    }
-    spec = spec.replace(/\n{3,}/g, "\n\n");
-    spec = spec.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
-    spec = spec.replace(/\n\n(---)/g, "\n\n\n$1");
-  }
-
-  const chatText = chatPart || (spec ? "" : rawSpec);
-
-  debugLog("parseResponse", {
-    inputLength: text.length,
-    hasSpec: !!spec,
+  debugLog("parseResponse (패턴 매칭)", {
+    specFound: !!spec,
     specLength: spec?.length ?? 0,
-    chatTextLength: chatText.length,
-    chatText: chatText || "(없음)",
     specSections: spec?.match(/^## .+/gm)?.join(", ") ?? "(없음)",
   });
 
-  return {
-    spec,
-    html: html || null,
-    chatText,
-  };
+  return { spec, html: html || null, chatText };
 }

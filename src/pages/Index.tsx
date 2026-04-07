@@ -10,7 +10,7 @@ import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { sendMessage } from "@/lib/api";
-import { mergeSpec, stripConversational, generateChangeSummary } from "@/lib/parser";
+import { mergeSpec, generateChangeSummary } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
@@ -68,65 +68,46 @@ const Index = () => {
         (token) => {
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === aiMsgId ? { ...m, content: (m.content + token).trimStart().replace(/===SPEC===|===SPEC_END===/g, "") } : m,
+              m.id === aiMsgId ? { ...m, content: (m.content + token).trimStart().replace(/<\/?spec>/g, "") } : m,
             ),
           );
         },
       );
 
+      // 스트리밍 완료 후: chatText로 AI 메시지 정리 (<spec> 태그, HTML 블록 제거된 전체 텍스트)
+      const chatContent = response.chatText.trim();
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
+      );
+
+      // Spec 추출 결과가 있으면 문서 패널에 반영
       if (response.spec) {
-        const cleaned = stripConversational(response.spec);
-
         if (!activeSession.specContent) {
-          // ── 초기 생성: Spec이 없는 상태에서 새 Spec 수신 ──
-          const chatContent = response.chatText.trim();
-          if (chatContent) {
-            setMessages((prev) => [
-              ...prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
-              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료. Prototype을 생성하려면 채팅으로 요청해 주세요." },
-            ]);
-          } else {
-            setMessages((prev) => [
-              ...prev.filter((m) => m.id !== aiMsgId),
-              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료. Prototype을 생성하려면 채팅으로 요청해 주세요." },
-            ]);
-          }
-
-          setSpecContent(cleaned);
+          // ── 초기 생성 ──
+          setSpecContent(response.spec);
           if (response.html) setHtmlContent(response.html);
-
           setSnapshots((prev) => [
             ...prev,
             {
-              spec: cleaned,
+              spec: response.spec!,
               html: response.html || activeSession.htmlContent,
               timestamp: Date.now(),
               summary: "초기 생성",
             },
           ]);
-
+          setMessages((prev) => [
+            ...prev,
+            { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료. Prototype을 생성하려면 채팅으로 요청해 주세요." },
+          ]);
         } else {
-          // ── 수정 모드: 기존 Spec에 변경 사항 merge ──
+          // ── 수정 모드: merge ──
           const prevSpec = activeSession.specContent;
-          const merged = mergeSpec(prevSpec, cleaned);
+          const merged = mergeSpec(prevSpec, response.spec);
           const specChanged = merged !== prevSpec;
 
           if (specChanged) {
-            const chatContent = response.chatText.trim();
-            if (chatContent) {
-              setMessages((prev) => [
-                ...prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
-                { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 업데이트됨" },
-              ]);
-            } else {
-              setMessages((prev) => [
-                ...prev.filter((m) => m.id !== aiMsgId),
-                { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 업데이트됨" },
-              ]);
-            }
             setSpecContent(merged);
             if (response.html) setHtmlContent(response.html);
-
             setSnapshots((prev) => [
               ...prev,
               {
@@ -136,36 +117,21 @@ const Index = () => {
                 summary: summarizeChange(prevSpec, merged),
               },
             ]);
-          } else {
-            // merge 결과가 동일 → 변경 없음
-            const chatContent = response.chatText.trim();
-            if (chatContent) {
-              setMessages((prev) =>
-                prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent } : m)),
-              );
-            } else {
-              setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
-            }
+            setMessages((prev) => [
+              ...prev,
+              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 업데이트됨" },
+            ]);
           }
         }
+      }
 
-      // ── 일반 대화 (검증 모드): Spec/히스토리 건드리지 않음 ──
-      } else {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiMsgId
-              ? { ...m, content: (response.chatText || response.text).trim() }
-              : m,
-          ),
-        );
-
-        if (response.html) {
-          setHtmlContent(response.html);
-          setMessages((prev) => [
-            ...prev,
-            { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
-          ]);
-        }
+      // HTML만 있는 경우 (Spec 없이 Prototype만 업데이트)
+      if (!response.spec && response.html) {
+        setHtmlContent(response.html);
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
+        ]);
       }
     } catch (err) {
       const errContent = err instanceof Error

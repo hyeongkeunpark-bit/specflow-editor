@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Send, Paperclip, Menu, Plus, Trash2 } from "lucide-react";
 import type { ChatMessage, Session } from "@/lib/types";
 import {
@@ -185,13 +187,17 @@ const ChatPanel = ({
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-chat-user text-chat-user-foreground"
-                    : "bg-chat-ai text-chat-ai-foreground"
+                    ? "bg-chat-user text-chat-user-foreground whitespace-pre-wrap"
+                    : "bg-chat-ai text-chat-ai-foreground chat-markdown"
                 }`}
               >
-                {msg.content}
+                {msg.role === "ai" ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
               </div>
             </div>
           )

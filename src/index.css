@@ -151,6 +151,49 @@
   @apply bg-muted font-semibold;
 }
 
+/* Chat markdown — 채팅 버블 안의 마크다운 (컴팩트) */
+.chat-markdown h1, .chat-markdown h2, .chat-markdown h3 {
+  @apply font-semibold mt-3 mb-1;
+}
+.chat-markdown h1 { font-size: 1.1em; }
+.chat-markdown h2 { font-size: 1.05em; }
+.chat-markdown h3 { font-size: 1em; }
+.chat-markdown p { @apply mb-2 last:mb-0; }
+.chat-markdown ul { @apply list-disc pl-5 mb-2; }
+.chat-markdown ol { @apply list-decimal pl-5 mb-2; }
+.chat-markdown li { @apply mb-0.5; }
+.chat-markdown code {
+  @apply bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[0.85em];
+}
+.chat-markdown pre {
+  @apply bg-black/10 dark:bg-white/10 p-3 rounded-md mb-2 overflow-x-auto text-[0.85em];
+}
+.chat-markdown pre code {
+  @apply bg-transparent p-0;
+}
+.chat-markdown blockquote {
+  @apply border-l-2 pl-3 opacity-70 mb-2;
+  border-color: currentColor;
+}
+.chat-markdown table {
+  @apply w-full border-collapse mb-2 text-[0.85em];
+}
+.chat-markdown th, .chat-markdown td {
+  @apply px-2 py-1 text-left;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+}
+.chat-markdown th {
+  @apply font-semibold;
+  background: rgba(128, 128, 128, 0.08);
+}
+.chat-markdown hr {
+  @apply my-2;
+  border-color: rgba(128, 128, 128, 0.2);
+}
+.chat-markdown > *:first-child {
+  @apply mt-0;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: hsl(var(--background)); }

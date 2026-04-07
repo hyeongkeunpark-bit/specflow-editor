@@ -1,4 +1,4 @@
-import { parseResponse, stripConversational } from "./parser";
+import { parseResponse } from "./parser";
 import { matchDummy } from "./dummyResponse";
 import { generateSpecSummary } from "./specSummary";
 import type { ChatMessage } from "./types";
