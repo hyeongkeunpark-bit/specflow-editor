@@ -533,7 +533,7 @@ export function parseResponse(text: string): ParsedResponse {
   // 마커가 없으면 첫 ## 위치에 추가
   let processed = text;
   if (!processed.includes(SPEC_START)) {
-    const firstH = processed.search(/^#\s+/m);
+    const firstH = processed.search(/^#{1,2}\s/m);
     if (firstH >= 0) {
       processed = processed.slice(0, firstH) + SPEC_START + "\n" + processed.slice(firstH);
       // 끝에 SPEC_END 추가
@@ -561,7 +561,19 @@ export function parseResponse(text: string): ParsedResponse {
     specRaw = specRaw.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
     specRaw = specRaw.replace(/\n\n(---)/g, "\n\n\n$1");
 
-    const chatText = [chatBefore, chatAfter].filter(Boolean).join("\n\n");
+    // spec 끝의 trailing 텍스트 분리 → chatText로 이동
+    // spec은 마크다운 서식(|, >, #, -, *, ```)으로 끝남. 그 뒤 일반 문장 = chat
+    let specTrailing = "";
+    const specLines = specRaw.split("\n");
+    while (specLines.length > 0) {
+      const last = specLines[specLines.length - 1].trim();
+      if (!last || last === "---") { specLines.pop(); continue; }
+      if (/^[|>#\-*`\[]/.test(last) || /^#{1,3}\s/.test(last)) break;
+      specTrailing = specLines.pop()! + (specTrailing ? "\n" + specTrailing : "");
+    }
+    specRaw = specLines.join("\n").trim();
+
+    const chatText = [chatBefore, specTrailing, chatAfter].filter(Boolean).join("\n\n");
 
     debugLog("parseResponse (마커)", {
       hasMarker: true,
