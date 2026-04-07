@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -10,9 +10,10 @@ import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { sendMessage } from "@/lib/api";
+import type { SendOptions } from "@/lib/api";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
-import { FileText, Code2, History, Copy, Download, ZoomIn, ZoomOut, Link, Sun, Moon, PanelRightClose } from "lucide-react";
+import { FileText, Code2, History, Copy, Download, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | "history" | null;
@@ -35,6 +36,16 @@ const Index = () => {
   const [isDark, setIsDark] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // ── dirty 플래그: 변경 후 다음 전송 시 1회 포함 ──
+  const specDirtyRef = useRef(false);
+  const htmlDirtyRef = useRef(false);
+
+  // ── Prototype 변경 이력 (Spec 업데이트 시 전달용) ──
+  const protoChangeLogRef = useRef<string[]>([]);
+
+  // ── 스트리밍 raw 텍스트 (노이즈 제거용) ──
+  const rawStreamRef = useRef("");
+
   const toggleTheme = () => {
     const next = !isDark;
     setIsDark(next);
@@ -44,9 +55,10 @@ const Index = () => {
   /** 유저 메시지 첫 줄을 변경 요약으로 사용 */
   const summarizeChange = (userMessage: string): string => {
     const firstLine = userMessage.split("\n")[0].trim();
-    return firstLine || "Spec 수정";
+    return firstLine || "수정";
   };
 
+  // ── 일반 채팅 전송 ──
   const handleSend = useCallback(async (text: string) => {
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -59,62 +71,71 @@ const Index = () => {
     // 스트리밍용 AI 메시지 placeholder
     const aiMsgId = (Date.now() + 1).toString();
     setMessages((prev) => [...prev, { id: aiMsgId, role: "ai" as const, content: "" }]);
+    rawStreamRef.current = "";
+
+    // dirty 플래그 체크 후 리셋
+    const sendSpec = specDirtyRef.current ? activeSession.specContent || undefined : undefined;
+    const sendHtml = htmlDirtyRef.current ? activeSession.htmlContent || undefined : undefined;
+    if (sendSpec) specDirtyRef.current = false;
+    if (sendHtml) htmlDirtyRef.current = false;
+
+    const options: SendOptions = {
+      specContent: sendSpec,
+      htmlContent: sendHtml,
+      onToken: (token) => {
+        rawStreamRef.current += token;
+        const display = stripStreamingNoise(rawStreamRef.current);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId ? { ...m, content: display } : m,
+          ),
+        );
+      },
+    };
 
     try {
-      // 스트리밍: 토큰 단위로 AI 메시지 업데이트
-      const response = await sendMessage(
-        text,
-        activeSession.messages,
-        activeSession.specContent || undefined,
-        (token) => {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === aiMsgId ? { ...m, content: (m.content + token).trimStart().replace(/<\/?spec>/g, "") } : m,
-            ),
-          );
-        },
-      );
+      const response = await sendMessage(text, activeSession.messages, options);
 
-      // 스트리밍 완료 후: chatText로 AI 메시지 정리 (<spec> 태그, HTML 블록 제거된 전체 텍스트)
+      // 스트리밍 완료 후: chatText로 AI 메시지 정리
       const chatContent = response.chatText.trim();
       setMessages((prev) =>
         prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
       );
 
-      // Spec 추출 결과가 있으면 문서 패널에 반영
+      // ── Spec 추출 결과 처리 ──
       if (response.spec) {
         if (!activeSession.specContent) {
-          // ── 초기 생성 ──
+          // 초기 생성
           setSpecContent(response.spec);
-          if (response.html) setHtmlContent(response.html);
+          specDirtyRef.current = true;
           setSnapshots((prev) => [
             ...prev,
             {
               spec: response.spec!,
-              html: response.html || activeSession.htmlContent,
+              html: activeSession.htmlContent,
               timestamp: Date.now(),
-              summary: "초기 생성",
+              summary: "Spec 초기 생성",
               userMessage: text,
             },
           ]);
           setMessages((prev) => [
             ...prev,
-            { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 생성 완료. Prototype을 생성하려면 채팅으로 요청해 주세요." },
+            { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 업데이트됨" },
           ]);
         } else {
-          // ── 수정 모드: merge ──
+          // 수정 모드: merge
           const prevSpec = activeSession.specContent;
           const merged = mergeSpec(prevSpec, response.spec);
           const specChanged = merged !== prevSpec;
 
           if (specChanged) {
             setSpecContent(merged);
-            if (response.html) setHtmlContent(response.html);
+            specDirtyRef.current = true;
             setSnapshots((prev) => [
               ...prev,
               {
                 spec: merged,
-                html: response.html || activeSession.htmlContent,
+                html: activeSession.htmlContent,
                 timestamp: Date.now(),
                 summary: summarizeChange(text),
                 userMessage: text,
@@ -128,9 +149,22 @@ const Index = () => {
         }
       }
 
-      // HTML만 있는 경우 (Spec 없이 Prototype만 업데이트)
-      if (!response.spec && response.html) {
+      // ── HTML 추출 결과 처리 ──
+      if (response.html) {
         setHtmlContent(response.html);
+        htmlDirtyRef.current = true;
+        // Prototype 변경 이력에 추가
+        protoChangeLogRef.current.push(text);
+        setSnapshots((prev) => [
+          ...prev,
+          {
+            spec: activeSession.specContent,
+            html: response.html!,
+            timestamp: Date.now(),
+            summary: activeSession.htmlContent ? summarizeChange(text) : "Prototype 초기 생성",
+            userMessage: text,
+          },
+        ]);
         setMessages((prev) => [
           ...prev,
           { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
@@ -143,15 +177,102 @@ const Index = () => {
       setMessages((prev) =>
         prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
       );
+      // 전송 실패 시 dirty 복원
+      if (sendSpec) specDirtyRef.current = true;
+      if (sendHtml) htmlDirtyRef.current = true;
     } finally {
       setIsLoading(false);
     }
   }, [setMessages, setSpecContent, setHtmlContent, setSnapshots, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
 
+  // ── [Spec 문서 업데이트] 버튼 핸들러 ──
+  const handleSpecUpdate = useCallback(async () => {
+    if (!activeSession.htmlContent) return;
+    setIsLoading(true);
+
+    const now = Date.now();
+    const sysMsgId = `spec-update-sys-${now}`;
+    const aiMsgId = `spec-update-ai-${now}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: sysMsgId, role: "system" as const, content: "📝 Spec 문서 업데이트 요청 중..." },
+      { id: aiMsgId, role: "ai" as const, content: "" },
+    ]);
+    rawStreamRef.current = "";
+
+    const options: SendOptions = {
+      specUpdateMode: {
+        specContent: activeSession.specContent,
+        htmlContent: activeSession.htmlContent,
+        changeLog: [...protoChangeLogRef.current],
+      },
+      onToken: (token) => {
+        rawStreamRef.current += token;
+        const display = stripStreamingNoise(rawStreamRef.current);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId ? { ...m, content: display } : m,
+          ),
+        );
+      },
+    };
+
+    try {
+      const response = await sendMessage("", activeSession.messages, options);
+
+      const chatContent = response.chatText.trim();
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
+      );
+
+      if (response.spec) {
+        if (!activeSession.specContent) {
+          setSpecContent(response.spec);
+        } else {
+          const merged = mergeSpec(activeSession.specContent, response.spec);
+          setSpecContent(merged);
+        }
+        specDirtyRef.current = true;
+
+        setSnapshots((prev) => [
+          ...prev,
+          {
+            spec: activeSession.specContent ? mergeSpec(activeSession.specContent, response.spec!) : response.spec!,
+            html: activeSession.htmlContent,
+            timestamp: Date.now(),
+            summary: "Spec 문서 업데이트",
+            userMessage: "Prototype 기반 Spec 업데이트",
+          },
+        ]);
+
+        // 변경 이력 리셋
+        protoChangeLogRef.current = [];
+
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 문서 업데이트 완료" },
+        ]);
+
+        toast.success("Spec 문서가 업데이트되었습니다");
+      }
+    } catch (err) {
+      const errContent = err instanceof Error
+        ? `Spec 업데이트 오류: ${err.message}`
+        : "Spec 업데이트 중 오류가 발생했습니다.";
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setMessages, setSpecContent, setSnapshots, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
+
   const handleRestore = (index: number) => {
     const snap = activeSession.snapshots[index];
     setSpecContent(snap.spec);
     setHtmlContent(snap.html);
+    if (snap.spec !== activeSession.specContent) specDirtyRef.current = true;
+    if (snap.html !== activeSession.htmlContent) htmlDirtyRef.current = true;
     setSnapshots((prev) => prev.slice(0, index + 1));
     toast.success(`v${index + 1}로 되돌렸습니다`);
   };
@@ -159,6 +280,9 @@ const Index = () => {
   const togglePanel = (panel: SidePanel) => {
     setActivePanel((prev) => (prev === panel ? null : panel));
   };
+
+  // Prototype 변경 이력이 있으면 Spec 업데이트 버튼 활성화
+  const hasProtoChanges = protoChangeLogRef.current.length > 0;
 
   const sidePanelContent = activePanel && (
     activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onClose={() => setActivePanel(null)} /> :
@@ -188,7 +312,14 @@ const Index = () => {
           <PanelDivider />
 
           <ResizablePanel defaultSize={activePanel ? 33 : 57} minSize={15}>
-            <PrototypePanel htmlContent={activeSession.htmlContent} />
+            <PrototypePanel
+              htmlContent={activeSession.htmlContent}
+              hasSpecContent={!!activeSession.specContent}
+              hasProtoChanges={hasProtoChanges}
+              isLoading={isLoading}
+              onSpecUpdate={handleSpecUpdate}
+              onRequestPrototype={() => handleSend("Prototype 생성해줘")}
+            />
           </ResizablePanel>
 
           {activePanel && sidePanelContent && (
@@ -234,6 +365,26 @@ const Index = () => {
     </div>
   );
 };
+
+/** 스트리밍 중 채팅에 노출되면 안 되는 콘텐츠 제거 */
+/** raw 스트리밍 텍스트에서 노이즈를 제거하여 채팅에 표시할 텍스트 반환 */
+function stripStreamingNoise(rawText: string): string {
+  let text = rawText.trimStart().replace(/<\/?spec>/g, "");
+
+  // ```html 블록 또는 <!DOCTYPE html 이후 전체를 잘라냄
+  const htmlFenceIdx = text.indexOf("```html");
+  const doctypeIdx = text.search(/<!DOCTYPE html/i);
+  const cutIdx = htmlFenceIdx >= 0 && doctypeIdx >= 0
+    ? Math.min(htmlFenceIdx, doctypeIdx)
+    : htmlFenceIdx >= 0 ? htmlFenceIdx : doctypeIdx;
+
+  if (cutIdx >= 0) {
+    const before = text.slice(0, cutIdx).trim();
+    return before ? before + "\n\n(Prototype 생성 중...)" : "(Prototype 생성 중...)";
+  }
+
+  return text;
+}
 
 function PanelDivider() {
   return (

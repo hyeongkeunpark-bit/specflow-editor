@@ -1,12 +1,29 @@
 import { useState } from "react";
-import { Monitor, Smartphone, Link } from "lucide-react";
+import { Monitor, Smartphone, Link, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 interface PrototypePanelProps {
   htmlContent: string;
+  /** Spec 문서가 존재하는지 (빈 상태 CTA 조건) */
+  hasSpecContent?: boolean;
+  /** Prototype 변경 이력이 있는지 (Spec 업데이트 버튼 활성 조건) */
+  hasProtoChanges?: boolean;
+  /** 로딩 중 여부 */
+  isLoading?: boolean;
+  /** [Spec 문서 업데이트] 버튼 클릭 */
+  onSpecUpdate?: () => void;
+  /** [Prototype 생성] 버튼 클릭 (빈 상태 CTA) */
+  onRequestPrototype?: () => void;
 }
 
-const PrototypePanel = ({ htmlContent }: PrototypePanelProps) => {
+const PrototypePanel = ({
+  htmlContent,
+  hasSpecContent = false,
+  hasProtoChanges = false,
+  isLoading = false,
+  onSpecUpdate,
+  onRequestPrototype,
+}: PrototypePanelProps) => {
   const [viewport, setViewport] = useState<"desktop" | "mobile">("desktop");
 
   const handleGenerateUrl = () => {
@@ -59,6 +76,20 @@ const PrototypePanel = ({ htmlContent }: PrototypePanelProps) => {
               </button>
             </>
           )}
+          {htmlContent && onSpecUpdate && (
+            <>
+              <div className="w-px h-4 bg-border mx-1" />
+              <button
+                onClick={onSpecUpdate}
+                disabled={isLoading || !hasProtoChanges}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Prototype 변경사항을 Spec 문서에 반영"
+              >
+                <FileText className="w-3 h-3" />
+                Spec 문서 업데이트
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -77,9 +108,20 @@ const PrototypePanel = ({ htmlContent }: PrototypePanelProps) => {
             />
           </div>
         ) : (
-          <p className="text-muted-foreground text-sm text-center">
-            Prototype이 생성되면<br />여기에서 미리 확인할 수 있습니다
-          </p>
+          <div className="flex flex-col items-center justify-center gap-4">
+            <p className="text-muted-foreground text-sm text-center">
+              Prototype이 생성되면<br />여기에서 미리 확인할 수 있습니다
+            </p>
+            {hasSpecContent && onRequestPrototype && (
+              <button
+                onClick={onRequestPrototype}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Prototype 생성
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

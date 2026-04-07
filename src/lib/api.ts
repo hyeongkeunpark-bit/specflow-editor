@@ -18,6 +18,22 @@ interface ApiMessage {
 
 const MAX_HISTORY = 20;
 
+/** 전송 시 포함할 컨텍스트 옵션 */
+export interface SendOptions {
+  /** 현재 Spec 전문 (dirty 상태일 때만 전달) */
+  specContent?: string;
+  /** 현재 Prototype HTML (dirty 상태일 때만 전달) */
+  htmlContent?: string;
+  /** Spec 문서 업데이트 모드 — Spec + HTML + 변경이력을 함께 전송 */
+  specUpdateMode?: {
+    specContent: string;
+    htmlContent: string;
+    changeLog: string[];
+  };
+  /** 스트리밍 토큰 콜백 */
+  onToken?: (token: string) => void;
+}
+
 /**
  * 대화 이력을 Ennoia API용 messages 배열로 변환
  * - system 메시지 제외
@@ -27,37 +43,62 @@ const MAX_HISTORY = 20;
 function buildMessages(
   history: ChatMessage[],
   currentMessage: string,
-  specContent?: string,
+  options: Omit<SendOptions, "onToken"> = {},
 ): ApiMessage[] {
   const messages: ApiMessage[] = [];
 
-  // 대화 이력 (user/ai만, 최근 N개)
-  const relevant = history
-    .filter((m) => m.role === "user" || m.role === "ai")
-    .slice(-MAX_HISTORY);
+  const { specContent, htmlContent, specUpdateMode } = options;
 
-  for (const m of relevant) {
-    if (m.role === "user") {
-      messages.push({ role: "user", content: m.content });
-    } else {
-      // AI 응답에서 <spec> 블록 제거 → 대화 맥락만 유지
-      const cleaned = m.content.replace(/<spec>[\s\S]*?<\/spec>/g, "(Spec 내용 — 현재 버전 참조)").trim();
-      messages.push({ role: "assistant", content: cleaned });
+  // Spec 업데이트 모드에서는 대화 이력을 최소화 (Prototype 생성 맥락이 방해)
+  // 일반 모드에서는 최근 N개 대화 이력 포함
+  if (!specUpdateMode) {
+    const relevant = history
+      .filter((m) => m.role === "user" || m.role === "ai")
+      .slice(-MAX_HISTORY);
+
+    for (const m of relevant) {
+      if (m.role === "user") {
+        messages.push({ role: "user", content: m.content });
+      } else {
+        // AI 응답에서 <spec> 블록 제거 → 대화 맥락만 유지
+        const cleaned = m.content.replace(/<spec>[\s\S]*?<\/spec>/g, "(Spec 내용 — 현재 버전 참조)").trim();
+        messages.push({ role: "assistant", content: cleaned });
+      }
     }
   }
 
-  // 현재 Spec이 이미 이전 메시지에 포함되어 있는지 확인
-  // → 포함되어 있으면 중복 전송하지 않음 (토큰 절감)
-  // → Spec이 변경(merge, 복원 등)되었으면 새로 첨부
-  const specAlreadySent = specContent && messages.some(
-    (m) => m.role === "user" && m.content.includes(specContent),
-  );
+  if (specUpdateMode) {
+    // [Spec 문서 업데이트] 버튼 모드: Spec + HTML + 변경이력
+    const changeLogText = specUpdateMode.changeLog.length > 0
+      ? specUpdateMode.changeLog.map((c, i) => `${i + 1}. ${c}`).join("\n")
+      : "(변경 이력 없음)";
 
-  let userContent = currentMessage;
-  if (specContent && !specAlreadySent) {
-    userContent = `[현재 Spec 전문]\n${specContent}\n\n[요청]\n${currentMessage}`;
+    const parts = [
+      `[Spec 문서 업데이트 요청]`,
+      specUpdateMode.specContent
+        ? `[현재 Spec 전문]\n${specUpdateMode.specContent}`
+        : `[현재 Spec 전문]\n(아직 생성되지 않음)`,
+      `[현재 Prototype HTML]\n${specUpdateMode.htmlContent}`,
+      `[Prototype 변경 이력]\n${changeLogText}`,
+      `위 내용을 기반으로 Spec을 생성/업데이트해 주세요.`,
+    ];
+    messages.push({ role: "user", content: parts.join("\n\n") });
+  } else {
+    // 일반 채팅 모드: dirty 상태인 컨텍스트만 포함
+    const contextParts: string[] = [];
+    if (specContent) {
+      contextParts.push(`[현재 Spec 전문]\n${specContent}`);
+    }
+    if (htmlContent) {
+      contextParts.push(`[현재 Prototype HTML]\n${htmlContent}`);
+    }
+
+    let userContent = currentMessage;
+    if (contextParts.length > 0) {
+      userContent = contextParts.join("\n\n") + `\n\n[요청]\n${currentMessage}`;
+    }
+    messages.push({ role: "user", content: userContent });
   }
-  messages.push({ role: "user", content: userContent });
 
   return messages;
 }
@@ -139,12 +180,12 @@ async function callChat(messages: ApiMessage[], onToken?: (token: string) => voi
 export async function sendMessage(
   userMessage: string,
   history: ChatMessage[] = [],
-  specContent?: string,
-  onToken?: (token: string) => void,
+  options: SendOptions = {},
 ): Promise<ChatResponse> {
   const dummy = matchDummy(userMessage);
   if (dummy) return dummy;
 
-  const messages = buildMessages(history, userMessage, specContent);
+  const { onToken, ...buildOpts } = options;
+  const messages = buildMessages(history, userMessage, buildOpts);
   return callChat(messages, onToken);
 }
