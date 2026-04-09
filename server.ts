@@ -1,12 +1,51 @@
 import express from "express";
+import Anthropic from "@anthropic-ai/sdk";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
+const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
 
 app.use(express.json({ limit: "1mb" }));
+
+// ── Claude API 클라이언트 ──
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// ── 시스템 프롬프트 + 지식 파일 로드 ──
+function loadSystemPrompt(): string {
+  const promptPath = path.resolve(__dirname, "../prompt-v4-prototype-first.md");
+  const knowledgePath = path.resolve(__dirname, "../product-spec-v2-template.txt");
+
+  let prompt = "";
+  try {
+    prompt = fs.readFileSync(promptPath, "utf-8");
+  } catch (err) {
+    console.warn("[server] 시스템 프롬프트 로드 실패:", (err as Error).message);
+    prompt = "당신은 Product Spec 작성과 Prototype 생성을 돕는 AI 에이전트입니다.";
+  }
+
+  try {
+    const knowledge = fs.readFileSync(knowledgePath, "utf-8");
+    prompt += "\n\n---\n\n# Knowledge: Product Spec 템플릿\n\n" + knowledge;
+  } catch (err) {
+    console.warn("[server] 지식 파일 로드 실패:", (err as Error).message);
+  }
+
+  console.log(`[server] 시스템 프롬프트 로드 완료: ${prompt.length}자`);
+  return prompt;
+}
+
+// ── Ennoia API (레거시, 유지) ──
 
 app.post("/api/chat", async (req, res) => {
   const { messages } = req.body as { messages: { role: string; content: string }[] };
@@ -15,94 +54,39 @@ app.post("/api/chat", async (req, res) => {
     return res.status(400).json({ error: "messages is required" });
   }
 
-  const apiUrl = process.env.ENNOIA_API_URL;
-  const project = process.env.ENNOIA_PROJECT;
-  const apiKey = process.env.ENNOIA_API_KEY;
-  const hash = process.env.ENNOIA_HASH;
-
-  if (!apiUrl || !project || !apiKey || !hash) {
-    return res.status(500).json({ error: "Missing Ennoia API configuration" });
-  }
-
-  const lastUserMsg = messages[messages.length - 1].content;
-  const historyMessages = messages.slice(0, -1);
-
-  const payload = JSON.stringify({
-    hash,
-    messages: historyMessages.length > 0 ? historyMessages : undefined,
-    params: { user_message: lastUserMsg },
-  });
-
-  console.log(`[api/chat] Sending ${payload.length} bytes to Ennoia`);
+  const systemPrompt = loadSystemPrompt();
 
   try {
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        project,
-        apiKey,
-      },
-      body: payload,
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 16384,
+      system: systemPrompt,
+      messages: messages.map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      })),
     });
 
-    console.log(`[api/chat] Ennoia responded: ${response.status}`);
+    const text =
+      response.content[0].type === "text" ? response.content[0].text : "";
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[api/chat] Ennoia error ${response.status}:`, errorText.slice(0, 500));
-      return res
-        .status(response.status)
-        .json({ error: `Ennoia API error (${response.status})`, detail: errorText.slice(0, 500) });
-    }
-
-    const raw = await response.text();
-    console.log(`[api/chat] Response body: ${raw.length} chars`);
-
-    if (!raw.trim()) {
-      console.error("[api/chat] Empty response body from Ennoia");
-      return res.status(502).json({ error: "Ennoia API returned empty response" });
-    }
-
-    let data: any;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      console.error("[api/chat] Invalid JSON from Ennoia:", raw.slice(0, 300));
-      return res.status(502).json({ error: "Ennoia API returned invalid JSON" });
-    }
-
-    const text = data.choices?.[0]?.message?.content?.[0]?.text ?? "";
-
-    if (!text) {
-      console.warn("[api/chat] No text in response. Keys:", Object.keys(data));
-    }
-
+    console.log(`[api/chat] Response: ${text.length} chars`);
     return res.status(200).json({ text });
   } catch (error: any) {
-    console.error("[api/chat] Unexpected error:", error.message);
-    return res
-      .status(500)
-      .json({ error: "Internal server error", detail: error.message });
+    console.error("[api/chat] Error:", error.message);
+    return res.status(500).json({ error: error.message });
   }
 });
 
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages } = req.body as { messages: { role: string; content: string }[] };
+  const { messages } = req.body as {
+    messages: { role: string; content: string }[];
+  };
 
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: "messages is required" });
-  }
-
-  const apiUrl = process.env.ENNOIA_API_URL;
-  const project = process.env.ENNOIA_PROJECT;
-  const apiKey = process.env.ENNOIA_API_KEY;
-  const hash = process.env.ENNOIA_HASH;
-
-  if (!apiUrl || !project || !apiKey || !hash) {
-    return res.status(500).json({ error: "Missing Ennoia API configuration" });
   }
 
   // SSE 응답 헤더
@@ -111,102 +95,42 @@ app.post("/api/chat/stream", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  // 마지막 user 메시지는 params.user_message로, 나머지는 messages 배열로
-  const lastUserMsg = messages[messages.length - 1].content;
-  const historyMessages = messages.slice(0, -1);
-
-  const payload = JSON.stringify({
-    hash,
-    stream: true,
-    messages: historyMessages.length > 0 ? historyMessages : undefined,
-    params: { user_message: lastUserMsg },
-  });
-
-  console.log(`[api/chat/stream] Sending ${payload.length} bytes to Ennoia (streaming, ${messages.length} messages)`);
+  const systemPrompt = loadSystemPrompt();
+  let fullResponse = "";
 
   try {
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Accept": "text/event-stream",
-        project,
-        apiKey,
-      },
-      body: payload,
+    const stream = anthropic.messages.stream({
+      model: MODEL,
+      max_tokens: 16384,
+      system: systemPrompt,
+      messages: messages.map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      })),
     });
 
-    if (!response.ok) {
-      console.error(`[api/chat/stream] Ennoia error: ${response.status}`);
-      res.write(`data: ${JSON.stringify({ error: `Ennoia API error (${response.status})` })}\n\n`);
+    stream.on("text", (text) => {
+      fullResponse += text;
+      res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+    });
+
+    stream.on("error", (error) => {
+      console.error("[api/chat/stream] Stream error:", error.message);
+      res.write(
+        `data: ${JSON.stringify({ error: error.message })}\n\n`,
+      );
       res.write("data: [DONE]\n\n");
       res.end();
-      return;
-    }
+    });
 
-    const reader = (response.body as any).getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let fullResponse = ""; // 디버그: 전체 응답 누적
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      // SSE 이벤트 분리 (double newline)
-      const events = buffer.split("\n\n");
-      buffer = events.pop() || "";
-
-      for (const event of events) {
-        if (!event.trim()) continue;
-        const lines = event.trim().split("\n");
-        let eventType = "";
-        let data = "";
-        for (const line of lines) {
-          if (line.startsWith("event:")) eventType = line.slice(6).trim();
-          else if (line.startsWith("data:")) data = line.slice(5).trim();
-        }
-
-        if (eventType === "delta" && data) {
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              fullResponse += content;
-              res.write(`data: ${JSON.stringify({ content })}\n\n`);
-            }
-          } catch {}
-        }
-      }
-    }
-
-    // 버퍼에 남은 이벤트 처리
-    if (buffer.trim()) {
-      const lines = buffer.trim().split("\n");
-      let eventType = "";
-      let data = "";
-      for (const line of lines) {
-        if (line.startsWith("event:")) eventType = line.slice(6).trim();
-        else if (line.startsWith("data:")) data = line.slice(5).trim();
-      }
-      if (eventType === "delta" && data) {
-        try {
-          const parsed = JSON.parse(data);
-          const content = parsed.choices?.[0]?.delta?.content;
-          if (content) {
-            res.write(`data: ${JSON.stringify({ content })}\n\n`);
-          }
-        } catch {}
-      }
-    }
-
-    console.log("[api/chat/stream] Stream completed");
-    console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
-    console.log(fullResponse.slice(0, 500));
-    console.log("전체 길이:", fullResponse.length, "자");
-    res.write("data: [DONE]\n\n");
-    res.end();
+    stream.on("end", () => {
+      console.log("[api/chat/stream] Stream completed");
+      console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
+      console.log(fullResponse.slice(0, 500));
+      console.log("전체 길이:", fullResponse.length, "자");
+      res.write("data: [DONE]\n\n");
+      res.end();
+    });
   } catch (error: any) {
     console.error("[api/chat/stream] Error:", error.message);
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
@@ -217,4 +141,5 @@ app.post("/api/chat/stream", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`[server] API proxy running on http://localhost:${PORT}`);
+  console.log(`[server] Model: ${MODEL}`);
 });

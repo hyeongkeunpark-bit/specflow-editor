@@ -427,19 +427,102 @@ export interface ParsedResponse {
   spec: string | null;
   html: string | null;
   chatText: string;
+  partialUpdate?: boolean;
+}
+
+// ── HTML 3-Section 분리/병합 ──
+
+interface HtmlSections {
+  preamble: string;   // <!DOCTYPE html>...<style>
+  style: string;      // <style> 안 내용
+  midamble: string;   // </style>...</head><body...>
+  body: string;       // body 내용 (<script> 이전)
+  prescript: string;  // <script> 태그 자체
+  script: string;     // <script> 안 내용
+  postamble: string;  // </script></body></html>
+}
+
+export interface PartialHtmlUpdate {
+  style?: string;
+  body?: string;
+  script?: string;
+}
+
+const HTML_SECTIONS_RE = /([\s\S]*?<style[^>]*>)([\s\S]*?)(<\/style>[\s\S]*?<body[^>]*>)([\s\S]*?)(<script[^>]*>)([\s\S]*?)(<\/script>[\s\S]*)/;
+
+/** HTML을 3개 섹션(style, body, script)으로 분리 */
+export function splitHtmlSections(html: string): HtmlSections | null {
+  const m = html.match(HTML_SECTIONS_RE);
+  if (!m) return null;
+  const [, preamble, style, midamble, body, prescript, script, postamble] = m;
+  return { preamble, style, midamble, body, prescript, script, postamble };
+}
+
+/** AI 응답에서 <partial-update> 블록 추출 */
+export function extractPartialHtml(text: string): PartialHtmlUpdate | null {
+  // ```html 코드 블록 안에서 <partial-update> 탐색
+  const fencedMatch = text.match(/```html\s*\n([\s\S]*?)```/);
+  const content = fencedMatch ? fencedMatch[1] : text;
+
+  const partialMatch = content.match(/<partial-update>([\s\S]*?)<\/partial-update>/);
+  if (!partialMatch) return null;
+
+  const block = partialMatch[1];
+  const result: PartialHtmlUpdate = {};
+
+  const styleMatch = block.match(/<update-style>([\s\S]*?)<\/update-style>/);
+  if (styleMatch) result.style = styleMatch[1];
+
+  const bodyMatch = block.match(/<update-body>([\s\S]*?)<\/update-body>/);
+  if (bodyMatch) result.body = bodyMatch[1];
+
+  const scriptMatch = block.match(/<update-script>([\s\S]*?)<\/update-script>/);
+  if (scriptMatch) result.script = scriptMatch[1];
+
+  // 섹션이 하나도 없으면 무효
+  if (!result.style && !result.body && !result.script) return null;
+
+  debugLog("extractPartialHtml", {
+    hasStyle: !!result.style,
+    hasBody: !!result.body,
+    hasScript: !!result.script,
+  });
+
+  return result;
+}
+
+/** 기존 HTML에 부분 업데이트를 적용하여 완전한 HTML 반환 */
+export function mergeHtml(existingHtml: string, partial: PartialHtmlUpdate): string | null {
+  const sections = splitHtmlSections(existingHtml);
+  if (!sections) return null;
+
+  const merged =
+    sections.preamble +
+    (partial.style ?? sections.style) +
+    sections.midamble +
+    (partial.body ?? sections.body) +
+    sections.prescript +
+    (partial.script ?? sections.script) +
+    sections.postamble;
+
+  // 기본 구조 검증
+  if (!merged.includes("<!DOCTYPE html") && !merged.includes("<html")) return null;
+  if (!merged.includes("</html>")) return null;
+
+  debugLog("mergeHtml", {
+    existingLength: existingHtml.length,
+    mergedLength: merged.length,
+    updatedSections: [
+      partial.style ? "style" : null,
+      partial.body ? "body" : null,
+      partial.script ? "script" : null,
+    ].filter(Boolean).join(", "),
+  });
+
+  return merged;
 }
 
 // ── Spec 추출 ──
-
-/** # Product Spec 제목이 없으면 메타 정보 테이블에서 추출하여 추가 */
-function ensureSpecTitle(spec: string): string {
-  if (/^#\s+Product\s+Spec/im.test(spec)) return spec;
-  const titleMatch = spec.match(/\|\s*제목\s*\|\s*(.+?)\s*\|/);
-  if (titleMatch) {
-    return `# Product Spec: ${titleMatch[1].trim()}\n\n${spec}`;
-  }
-  return spec;
-}
 
 /** Spec 줄바꿈 정리: 3줄 이상 → 2줄, ## 앞에 빈 줄 보장 */
 function normalizeSpecWhitespace(spec: string): string {
@@ -470,8 +553,7 @@ function extractKnownSections(text: string): string | null {
   const titleMatch = cleaned.match(/^#\s+Product\s+Spec[^\n]*/m);
   let result = titleMatch ? titleMatch[0] + "\n\n" : "";
   result += specSections.map((s) => s.body).join("\n\n");
-  result = ensureSpecTitle(result.trim());
-  result = normalizeSpecWhitespace(result);
+  result = normalizeSpecWhitespace(result.trim());
 
   return result || null;
 }
@@ -487,21 +569,59 @@ function extractKnownSections(text: string): string | null {
  * 1차) <spec> 태그가 있으면 그 안의 내용
  * 2차) 알려진 섹션 패턴(## 메타 정보, ## 1. 문제 등)에 매칭되는 블록
  */
-export function parseResponse(text: string): ParsedResponse {
-  const html = extractHtml(text);
+export function parseResponse(text: string, existingHtml?: string): ParsedResponse {
+  let html = extractHtml(text);
+  let partialUpdate = false;
 
-  // chatText: 전체 응답에서 <spec> 태그와 HTML 블록만 제거 (내용은 유지)
+  // extractHtml이 <partial-update>를 잡았거나, html이 없을 때 → partial update 시도
+  const isPartialContent = html?.includes("<partial-update>");
+  debugLog("parseResponse partial check", {
+    extractHtmlLength: html?.length ?? 0,
+    isPartialContent,
+    hasExistingHtml: !!existingHtml,
+    existingHtmlLength: existingHtml?.length ?? 0,
+    existingHtmlStart: existingHtml?.substring(0, 50) ?? "(none)",
+  });
+
+  if ((isPartialContent || !html) && existingHtml) {
+    const partial = extractPartialHtml(text);
+    debugLog("parseResponse partial extract", {
+      partialFound: !!partial,
+      hasStyle: !!partial?.style,
+      hasBody: !!partial?.body,
+      hasScript: !!partial?.script,
+    });
+
+    if (partial) {
+      const merged = mergeHtml(existingHtml, partial);
+      debugLog("parseResponse merge result", {
+        mergeSuccess: !!merged,
+        mergedLength: merged?.length ?? 0,
+      });
+
+      if (merged) {
+        html = merged;
+        partialUpdate = true;
+      } else if (isPartialContent) {
+        html = null; // partial-update였지만 merge 실패
+      }
+    } else if (isPartialContent) {
+      html = null; // partial-update 태그가 있었지만 파싱 실패
+    }
+  }
+
+  // chatText: 전체 응답에서 <spec> 태그, HTML 블록, partial-update 블록 제거
   const chatText = text
     .replace(/<\/?spec>/g, "")
     .replace(/```html\s*\n[\s\S]*?```/g, "")
     .replace(/<!DOCTYPE html[\s\S]*?<\/html>/gi, "")
+    .replace(/<partial-update>[\s\S]*?<\/partial-update>/g, "")
     .trim();
 
   // ── 1차: <spec> 태그로 Spec 추출 ──
   const specTagMatch = text.match(/<spec>([\s\S]*?)<\/spec>/);
   if (specTagMatch) {
     let spec = specTagMatch[1].trim();
-    spec = ensureSpecTitle(spec);
     spec = normalizeSpecWhitespace(spec);
 
     debugLog("parseResponse (<spec> 태그)", {
@@ -509,7 +629,7 @@ export function parseResponse(text: string): ParsedResponse {
       specSections: spec.match(/^## .+/gm)?.join(", ") ?? "(없음)",
     });
 
-    return { spec: spec || null, html: html || null, chatText };
+    return { spec: spec || null, html: html || null, chatText, partialUpdate };
   }
 
   // ── 2차: 알려진 섹션 패턴 매칭 (폴백) ──
@@ -521,5 +641,5 @@ export function parseResponse(text: string): ParsedResponse {
     specSections: spec?.match(/^## .+/gm)?.join(", ") ?? "(없음)",
   });
 
-  return { spec, html: html || null, chatText };
+  return { spec, html: html || null, chatText, partialUpdate };
 }

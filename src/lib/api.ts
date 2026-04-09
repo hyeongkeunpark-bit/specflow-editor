@@ -7,6 +7,7 @@ export interface ChatResponse {
   spec: string | null;
   html: string | null;
   chatText: string;
+  partialUpdate?: boolean;
 }
 
 // ── messages 배열 구성 ──
@@ -32,6 +33,8 @@ export interface SendOptions {
   };
   /** 스트리밍 토큰 콜백 */
   onToken?: (token: string) => void;
+  /** 현재 Prototype HTML (partial update merge용) */
+  existingHtml?: string;
 }
 
 /**
@@ -113,6 +116,7 @@ function is504(err: unknown): boolean {
 async function fetchChatStream(
   messages: ApiMessage[],
   onToken?: (token: string) => void,
+  existingHtml?: string,
 ): Promise<ChatResponse> {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
@@ -161,18 +165,18 @@ async function fetchChatStream(
     }
   }
 
-  const { spec, html, chatText } = parseResponse(fullText);
-  return { text: fullText, spec, html, chatText };
+  const { spec, html, chatText, partialUpdate } = parseResponse(fullText, existingHtml);
+  return { text: fullText, spec, html, chatText, partialUpdate };
 }
 
 /** 단일 호출 — 스트리밍 우선, 504 시 1회 재시도 */
-async function callChat(messages: ApiMessage[], onToken?: (token: string) => void): Promise<ChatResponse> {
+async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string): Promise<ChatResponse> {
   try {
-    return await fetchChatStream(messages, onToken);
+    return await fetchChatStream(messages, onToken, existingHtml);
   } catch (err) {
     if (!is504(err)) throw err;
   }
-  return fetchChatStream(messages, onToken);
+  return fetchChatStream(messages, onToken, existingHtml);
 }
 
 // ── 공개 API ──
@@ -185,7 +189,7 @@ export async function sendMessage(
   const dummy = matchDummy(userMessage);
   if (dummy) return dummy;
 
-  const { onToken, ...buildOpts } = options;
+  const { onToken, existingHtml, ...buildOpts } = options;
   const messages = buildMessages(history, userMessage, buildOpts);
-  return callChat(messages, onToken);
+  return callChat(messages, onToken, existingHtml);
 }

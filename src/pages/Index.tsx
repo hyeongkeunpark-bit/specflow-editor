@@ -82,6 +82,7 @@ const Index = () => {
     const options: SendOptions = {
       specContent: sendSpec,
       htmlContent: sendHtml,
+      existingHtml: activeSession.htmlContent || undefined,
       onToken: (token) => {
         rawStreamRef.current += token;
         const display = stripStreamingNoise(rawStreamRef.current);
@@ -371,16 +372,17 @@ const Index = () => {
 function stripStreamingNoise(rawText: string): string {
   let text = rawText.trimStart().replace(/<\/?spec>/g, "");
 
-  // ```html 블록 또는 <!DOCTYPE html 이후 전체를 잘라냄
+  // ```html 블록, <!DOCTYPE html, <partial-update> 이후 전체를 잘라냄
   const htmlFenceIdx = text.indexOf("```html");
   const doctypeIdx = text.search(/<!DOCTYPE html/i);
-  const cutIdx = htmlFenceIdx >= 0 && doctypeIdx >= 0
-    ? Math.min(htmlFenceIdx, doctypeIdx)
-    : htmlFenceIdx >= 0 ? htmlFenceIdx : doctypeIdx;
+  const partialIdx = text.indexOf("<partial-update>");
+  const candidates = [htmlFenceIdx, doctypeIdx, partialIdx].filter(i => i >= 0);
+  const cutIdx = candidates.length > 0 ? Math.min(...candidates) : -1;
 
   if (cutIdx >= 0) {
     const before = text.slice(0, cutIdx).trim();
-    return before ? before + "\n\n(Prototype 생성 중...)" : "(Prototype 생성 중...)";
+    const label = partialIdx >= 0 && partialIdx === cutIdx ? "(Prototype 수정 중...)" : "(Prototype 생성 중...)";
+    return before ? before + "\n\n" + label : label;
   }
 
   return text;
