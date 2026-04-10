@@ -23,10 +23,13 @@ const anthropic = new Anthropic({
 
 // ── 시스템 프롬프트 + 지식 파일 로드 ──
 function resolveFile(filename: string): string {
-  // 1차: 로컬 개발 (specflow-editor/ 상위에 파일 존재)
-  const local = path.resolve(__dirname, "..", filename);
+  // 1차: 프로젝트 루트 (같은 디렉토리)
+  const local = path.resolve(__dirname, filename);
   if (fs.existsSync(local)) return local;
-  // 2차: Vercel 배포 (프로젝트 루트에 복사됨)
+  // 2차: 상위 디렉토리 (레거시 호환)
+  const parent = path.resolve(__dirname, "..", filename);
+  if (fs.existsSync(parent)) return parent;
+  // 3차: cwd (Vercel 배포)
   const cwd = path.resolve(process.cwd(), filename);
   if (fs.existsSync(cwd)) return cwd;
   return local; // 기본값
