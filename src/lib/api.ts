@@ -8,6 +8,8 @@ export interface ChatResponse {
   html: string | null;
   chatText: string;
   partialUpdate?: boolean;
+  /** delta 매칭 실패 → Morph 폴백이 시도되었는지 */
+  morphApplied?: boolean;
 }
 
 // ── messages 배열 구성 ──
@@ -33,7 +35,7 @@ export interface SendOptions {
   };
   /** 스트리밍 토큰 콜백 */
   onToken?: (token: string) => void;
-  /** 현재 Prototype HTML (partial update merge용) */
+  /** 현재 Prototype HTML (partial update merge용 + str_replace tool용) */
   existingHtml?: string;
 }
 
@@ -106,6 +108,133 @@ function buildMessages(
   return messages;
 }
 
+// ── Morph Fast Apply ──
+
+const MORPH_TIMEOUT = 15_000; // 15초
+const MORPH_MAX_RETRIES = 1;
+
+/** delta에서 search+replace 쌍 추출 */
+function extractDeltaPairs(fullText: string): { search: string; replace: string }[] {
+  const regex =
+    /<prototype_delta>\s*<search>([\s\S]*?)<\/search>\s*<replace>([\s\S]*?)<\/replace>\s*<\/prototype_delta>/g;
+  const pairs: { search: string; replace: string }[] = [];
+  let match;
+  while ((match = regex.exec(fullText)) !== null) {
+    const search = match[1].replace(/^\n/, "").replace(/\n$/, "");
+    const replace = match[2].replace(/^\n/, "").replace(/\n$/, "");
+    if (search || replace) pairs.push({ search, replace });
+  }
+  return pairs;
+}
+
+/** Morph abbreviated edit 구성: search+replace 쌍으로 맥락 포함 */
+function buildMorphEdit(pairs: { search: string; replace: string }[]): string {
+  const parts = pairs.map((p) =>
+    `// ... existing code ...\n// [FIND SIMILAR TO:] ${p.search.split("\n")[0]}\n${p.replace}`,
+  );
+  return parts.join("\n") + "\n// ... existing code ...";
+}
+
+/** Morph 출력 유효성 검증 */
+function validateMorphOutput(html: string, originalLength: number): string | null {
+  const sizeRatio = html.length / originalLength;
+  if (sizeRatio > 2) {
+    console.warn(`[morphApply] 거부: 크기 비율 ${sizeRatio.toFixed(1)}x`);
+    return null;
+  }
+  if (!html.includes("<!DOCTYPE html") && !html.includes("<html")) {
+    console.warn("[morphApply] 거부: HTML 구조 없음");
+    return null;
+  }
+  if (!html.includes("</html>")) {
+    console.warn("[morphApply] 거부: </html> 없음");
+    return null;
+  }
+  return html;
+}
+
+/** 단일 Morph 호출 (타임아웃 포함) */
+async function callMorph(original: string, edit: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MORPH_TIMEOUT);
+
+  try {
+    const res = await fetch("/api/morph/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ original, edit }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.html as string) || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** delta 실패 시 Morph에 원본 HTML + AI 변경 스니펫을 보내 재조립 (타임아웃 + 재시도) */
+async function morphApply(existingHtml: string, fullText: string): Promise<string | null> {
+  const pairs = extractDeltaPairs(fullText);
+  if (pairs.length === 0) return null;
+
+  const edit = buildMorphEdit(pairs);
+
+  for (let attempt = 0; attempt <= MORPH_MAX_RETRIES; attempt++) {
+    if (attempt > 0) console.warn(`[morphApply] 재시도 ${attempt}/${MORPH_MAX_RETRIES}`);
+
+    const raw = await callMorph(existingHtml, edit);
+    if (!raw) continue;
+
+    const validated = validateMorphOutput(raw, existingHtml.length);
+    if (validated) return validated;
+  }
+
+  return null;
+}
+
+// ── 최종 폴백: Claude에게 전체 HTML 재출력 요청 ──
+
+/** delta + Morph 모두 실패 시, Claude에게 전체 HTML 재출력을 요청 */
+async function requestFullHtmlFallback(
+  messages: ApiMessage[],
+  aiDeltaResponse: string,
+  existingHtml: string,
+): Promise<string | null> {
+  const followUpMessages: ApiMessage[] = [
+    ...messages,
+    { role: "assistant", content: aiDeltaResponse },
+    {
+      role: "user",
+      content:
+        `[수정 적용 실패 — 전체 HTML 재출력 필요]\n` +
+        `위 수정사항을 반영하여 전체 HTML을 \`\`\`html 코드 블록으로 출력해주세요. 대화 텍스트 없이 HTML만 출력합니다.\n\n` +
+        `[현재 Prototype HTML]\n${existingHtml}`,
+    },
+  ];
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: followUpMessages }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.text as string;
+    if (!text) return null;
+
+    const reParsed = parseResponse(text);
+    return reParsed.html;
+  } catch {
+    return null;
+  }
+}
+
 // ── API 호출 ──
 
 function is504(err: unknown): boolean {
@@ -165,8 +294,30 @@ async function fetchChatStream(
     }
   }
 
-  const { spec, html, chatText, partialUpdate } = parseResponse(fullText, existingHtml);
-  return { text: fullText, spec, html, chatText, partialUpdate };
+  // delta 파싱 시도 (exact → fuzzy) → 실패 시 Morph 폴백
+  const parsed = parseResponse(fullText, existingHtml);
+  let { html } = parsed;
+  const { spec, chatText, partialUpdate, deltaFailed } = parsed;
+  let morphApplied = false;
+
+  // Delta 실패 + full HTML도 없음 + existingHtml 존재 → 폴백 체인
+  if (deltaFailed && !html && existingHtml) {
+    // 1차 폴백: Morph
+    const morphResult = await morphApply(existingHtml, fullText);
+    if (morphResult) {
+      html = morphResult;
+      morphApplied = true;
+    } else {
+      // 2차 폴백: Claude에게 전체 HTML 재출력 요청
+      console.warn("[fetchChatStream] Morph 실패 → Claude 전체 HTML 재출력 요청");
+      const fullHtml = await requestFullHtmlFallback(messages, fullText, existingHtml);
+      if (fullHtml) {
+        html = fullHtml;
+      }
+    }
+  }
+
+  return { text: fullText, spec, html, chatText, partialUpdate: partialUpdate || morphApplied, morphApplied };
 }
 
 /** 단일 호출 — 스트리밍 우선, 504 시 1회 재시도 */

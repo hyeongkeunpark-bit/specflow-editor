@@ -14,7 +14,7 @@ const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
 const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "2mb" }));
 
 // ── Claude API 클라이언트 ──
 const anthropic = new Anthropic({
@@ -22,9 +22,19 @@ const anthropic = new Anthropic({
 });
 
 // ── 시스템 프롬프트 + 지식 파일 로드 ──
+function resolveFile(filename: string): string {
+  // 1차: 로컬 개발 (specflow-editor/ 상위에 파일 존재)
+  const local = path.resolve(__dirname, "..", filename);
+  if (fs.existsSync(local)) return local;
+  // 2차: Vercel 배포 (프로젝트 루트에 복사됨)
+  const cwd = path.resolve(process.cwd(), filename);
+  if (fs.existsSync(cwd)) return cwd;
+  return local; // 기본값
+}
+
 function loadSystemPrompt(): string {
-  const promptPath = path.resolve(__dirname, "../prompt-v4-prototype-first.md");
-  const knowledgePath = path.resolve(__dirname, "../product-spec-v2-template.txt");
+  const promptPath = resolveFile("prompt-v4-prototype-first.md");
+  const knowledgePath = resolveFile("product-spec-v2-template.txt");
 
   let prompt = "";
   try {
@@ -60,7 +70,7 @@ app.post("/api/chat", async (req, res) => {
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 16384,
-      system: systemPrompt,
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: messages.map((m) => ({
         role: m.role === "assistant" ? "assistant" : "user",
         content: m.content,
@@ -102,7 +112,7 @@ app.post("/api/chat/stream", async (req, res) => {
     const stream = anthropic.messages.stream({
       model: MODEL,
       max_tokens: 16384,
-      system: systemPrompt,
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: messages.map((m) => ({
         role: m.role === "assistant" ? "assistant" : "user",
         content: m.content,
@@ -116,9 +126,7 @@ app.post("/api/chat/stream", async (req, res) => {
 
     stream.on("error", (error) => {
       console.error("[api/chat/stream] Stream error:", error.message);
-      res.write(
-        `data: ${JSON.stringify({ error: error.message })}\n\n`,
-      );
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
     });
@@ -139,7 +147,76 @@ app.post("/api/chat/stream", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`[server] API proxy running on http://localhost:${PORT}`);
-  console.log(`[server] Model: ${MODEL}`);
+// ── Morph Fast Apply 엔드포인트 ──
+
+app.post("/api/morph/apply", async (req, res) => {
+  const { original, edit } = req.body as { original: string; edit: string };
+
+  if (!original || !edit) {
+    return res.status(400).json({ error: "original and edit are required" });
+  }
+
+  const morphApiKey = process.env.MORPH_API_KEY;
+  if (!morphApiKey) {
+    console.warn("[api/morph] MORPH_API_KEY not configured");
+    return res.status(501).json({ error: "MORPH_API_KEY not configured" });
+  }
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12_000); // 12초 타임아웃
+
+    const morphRes = await fetch("https://api.morphllm.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${morphApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "morph-v3-fast",
+        messages: [
+          {
+            role: "user",
+            content: `<code>\n${original}\n</code>\n<update>\n${edit}\n</update>`,
+          },
+        ],
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (!morphRes.ok) {
+      const errText = await morphRes.text();
+      console.error("[api/morph] Morph API error:", morphRes.status, errText.slice(0, 200));
+      return res.status(502).json({ error: `Morph API error: ${morphRes.status}` });
+    }
+
+    const data = (await morphRes.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const rawHtml = data.choices?.[0]?.message?.content?.trim();
+
+    if (!rawHtml) {
+      console.error("[api/morph] Empty Morph response");
+      return res.status(502).json({ error: "Empty Morph response" });
+    }
+
+    const sizeRatio = rawHtml.length / original.length;
+    console.log(`[api/morph] Morph applied: ${original.length} → ${rawHtml.length} chars (${sizeRatio.toFixed(1)}x)`);
+
+    return res.json({ html: rawHtml });
+  } catch (error: any) {
+    console.error("[api/morph] Error:", error.message);
+    return res.status(500).json({ error: error.message });
+  }
 });
+
+// Vercel 환경에서는 listen하지 않음 (serverless function으로 동작)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[server] API proxy running on http://localhost:${PORT}`);
+    console.log(`[server] Model: ${MODEL}`);
+  });
+}
+
+export default app;

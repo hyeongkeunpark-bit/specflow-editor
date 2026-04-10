@@ -372,16 +372,18 @@ const Index = () => {
 function stripStreamingNoise(rawText: string): string {
   let text = rawText.trimStart().replace(/<\/?spec>/g, "");
 
-  // ```html 블록, <!DOCTYPE html, <partial-update> 이후 전체를 잘라냄
+  // ```html, <!DOCTYPE html, <partial-update>, <prototype_delta> 이후 전체를 잘라냄
   const htmlFenceIdx = text.indexOf("```html");
   const doctypeIdx = text.search(/<!DOCTYPE html/i);
   const partialIdx = text.indexOf("<partial-update>");
-  const candidates = [htmlFenceIdx, doctypeIdx, partialIdx].filter(i => i >= 0);
+  const deltaIdx = text.indexOf("<prototype_delta>");
+  const candidates = [htmlFenceIdx, doctypeIdx, partialIdx, deltaIdx].filter(i => i >= 0);
   const cutIdx = candidates.length > 0 ? Math.min(...candidates) : -1;
 
   if (cutIdx >= 0) {
     const before = text.slice(0, cutIdx).trim();
-    const label = partialIdx >= 0 && partialIdx === cutIdx ? "(Prototype 수정 중...)" : "(Prototype 생성 중...)";
+    const isModify = (partialIdx >= 0 && partialIdx === cutIdx) || (deltaIdx >= 0 && deltaIdx === cutIdx);
+    const label = isModify ? "(Prototype 수정 중...)" : "(Prototype 생성 중...)";
     return before ? before + "\n\n" + label : label;
   }
 

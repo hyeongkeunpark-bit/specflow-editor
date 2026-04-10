@@ -428,6 +428,132 @@ export interface ParsedResponse {
   html: string | null;
   chatText: string;
   partialUpdate?: boolean;
+  /** delta 블록이 존재했지만 매칭 실패 → Morph 폴백 대상 */
+  deltaFailed?: boolean;
+}
+
+// ── Prototype Delta (텍스트 기반 str_replace) ──
+
+interface PrototypeDelta {
+  search: string;
+  replace: string;
+}
+
+/** AI 응답에서 <prototype_delta> 블록들을 추출 */
+export function extractPrototypeDeltas(text: string): PrototypeDelta[] | null {
+  const regex = /<prototype_delta>\s*<search>([\s\S]*?)<\/search>\s*<replace>([\s\S]*?)<\/replace>\s*<\/prototype_delta>/g;
+  const deltas: PrototypeDelta[] = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    // 태그 직후 줄바꿈 1개만 제거 (내부 공백은 보존)
+    const search = match[1].replace(/^\n/, "").replace(/\n$/, "");
+    const replace = match[2].replace(/^\n/, "").replace(/\n$/, "");
+    if (search) deltas.push({ search, replace });
+  }
+  return deltas.length > 0 ? deltas : null;
+}
+
+/**
+ * Fuzzy 매칭: 줄 단위 trim 비교로 원본 HTML에서 유일한 매칭 위치를 찾아 교체.
+ * - 각 줄의 앞뒤 공백만 무시 (내용은 정확히 일치해야 함)
+ * - 빈 줄은 스킵
+ * - 매칭이 정확히 1곳일 때만 성공 (유일성 보장)
+ * - 정규화 후 총 10자 미만이면 오탐 위험 → 시도하지 않음
+ */
+function fuzzyReplace(html: string, search: string, replace: string): string | null {
+  const searchLines = search.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  if (searchLines.length === 0) return null;
+  if (searchLines.join("").length < 10) return null;
+
+  const htmlRawLines = html.split("\n");
+  const htmlTrimmed = htmlRawLines.map((l) => l.trim());
+
+  // 각 줄의 시작 문자 오프셋 계산
+  const lineOffsets: number[] = [];
+  let offset = 0;
+  for (const line of htmlRawLines) {
+    lineOffsets.push(offset);
+    offset += line.length + 1; // +1 for \n
+  }
+
+  // 매칭 위치 탐색
+  const matchRanges: { firstLine: number; lastLine: number }[] = [];
+
+  for (let i = 0; i < htmlRawLines.length; i++) {
+    if (htmlTrimmed[i] === "" || htmlTrimmed[i] !== searchLines[0]) continue;
+
+    let searchIdx = 0;
+    let j = i;
+    let firstLine = -1;
+    let lastLine = -1;
+
+    while (j < htmlRawLines.length && searchIdx < searchLines.length) {
+      if (htmlTrimmed[j] === "") { j++; continue; }
+      if (htmlTrimmed[j] !== searchLines[searchIdx]) break;
+      if (firstLine === -1) firstLine = j;
+      lastLine = j;
+      searchIdx++;
+      j++;
+    }
+
+    if (searchIdx === searchLines.length && firstLine >= 0) {
+      // 같은 firstLine으로 시작하는 중복 방지
+      if (!matchRanges.some((r) => r.firstLine === firstLine)) {
+        matchRanges.push({ firstLine, lastLine });
+      }
+    }
+  }
+
+  if (matchRanges.length !== 1) return null;
+
+  const { firstLine, lastLine } = matchRanges[0];
+  const startIdx = lineOffsets[firstLine];
+  const endIdx = lineOffsets[lastLine] + htmlRawLines[lastLine].length;
+
+  return html.slice(0, startIdx) + replace + html.slice(endIdx);
+}
+
+/** 기존 HTML에 delta들을 순서대로 적용. exact → fuzzy 2단계 매칭. 하나라도 실패하면 null 반환. */
+export function applyPrototypeDeltas(html: string, deltas: PrototypeDelta[]): string | null {
+  let result = html;
+  let exactCount = 0;
+  let fuzzyCount = 0;
+
+  for (const delta of deltas) {
+    // 1차: exact match
+    if (result.includes(delta.search)) {
+      result = result.replace(delta.search, delta.replace);
+      exactCount++;
+      continue;
+    }
+
+    // 2차: fuzzy match (줄 단위 trim 비교)
+    const fuzzyResult = fuzzyReplace(result, delta.search, delta.replace);
+    if (fuzzyResult) {
+      result = fuzzyResult;
+      fuzzyCount++;
+      continue;
+    }
+
+    // 실패 — 디버그: search의 첫 키워드로 원본 HTML에서 관련 부분 찾아 비교
+    const firstToken = delta.search.match(/[.#\w-]+\{/)?.[0] || delta.search.slice(0, 20);
+    const idx = result.indexOf(firstToken);
+    const nearby = idx >= 0 ? result.slice(idx, idx + delta.search.length + 50) : "(키워드 없음)";
+    debugLog("applyPrototypeDeltas FAIL", {
+      search: delta.search.slice(0, 120),
+      원본_근처: nearby.slice(0, 120),
+      method: "exact+fuzzy 모두 실패",
+    });
+    return null;
+  }
+
+  debugLog("applyPrototypeDeltas OK", {
+    count: `${deltas.length}개`,
+    exact: `${exactCount}`,
+    fuzzy: `${fuzzyCount}`,
+    resultLength: result.length,
+  });
+  return result;
 }
 
 // ── HTML 3-Section 분리/병합 ──
@@ -572,50 +698,53 @@ function extractKnownSections(text: string): string | null {
 export function parseResponse(text: string, existingHtml?: string): ParsedResponse {
   let html = extractHtml(text);
   let partialUpdate = false;
+  let deltaFailed = false;
 
-  // extractHtml이 <partial-update>를 잡았거나, html이 없을 때 → partial update 시도
-  const isPartialContent = html?.includes("<partial-update>");
-  debugLog("parseResponse partial check", {
-    extractHtmlLength: html?.length ?? 0,
-    isPartialContent,
-    hasExistingHtml: !!existingHtml,
-    existingHtmlLength: existingHtml?.length ?? 0,
-    existingHtmlStart: existingHtml?.substring(0, 50) ?? "(none)",
-  });
-
-  if ((isPartialContent || !html) && existingHtml) {
-    const partial = extractPartialHtml(text);
-    debugLog("parseResponse partial extract", {
-      partialFound: !!partial,
-      hasStyle: !!partial?.style,
-      hasBody: !!partial?.body,
-      hasScript: !!partial?.script,
-    });
-
-    if (partial) {
-      const merged = mergeHtml(existingHtml, partial);
-      debugLog("parseResponse merge result", {
-        mergeSuccess: !!merged,
-        mergedLength: merged?.length ?? 0,
-      });
-
-      if (merged) {
-        html = merged;
+  // ── 1순위: <prototype_delta> 블록 → exact + fuzzy 매칭 ──
+  if (existingHtml) {
+    const deltas = extractPrototypeDeltas(text);
+    if (deltas) {
+      const applied = applyPrototypeDeltas(existingHtml, deltas);
+      if (applied) {
+        html = applied;
         partialUpdate = true;
-      } else if (isPartialContent) {
-        html = null; // partial-update였지만 merge 실패
+        debugLog("parseResponse delta", { deltaCount: deltas.length, resultLength: applied.length });
+      } else {
+        // exact + fuzzy 모두 실패 → Morph 폴백 대상으로 표시
+        deltaFailed = true;
+        debugLog("parseResponse deltaFailed", { deltaCount: deltas.length, hasFallbackHtml: !!html });
       }
-    } else if (isPartialContent) {
-      html = null; // partial-update 태그가 있었지만 파싱 실패
     }
   }
 
-  // chatText: 전체 응답에서 <spec> 태그, HTML 블록, partial-update 블록 제거
+  // ── 2순위: <partial-update> 블록 (레거시) ──
+  if (!partialUpdate && existingHtml) {
+    const isPartialContent = html?.includes("<partial-update>");
+    if (isPartialContent || !html) {
+      const partial = extractPartialHtml(text);
+      if (partial) {
+        const merged = mergeHtml(existingHtml, partial);
+        if (merged) {
+          html = merged;
+          partialUpdate = true;
+        } else if (isPartialContent) {
+          html = null;
+        }
+      } else if (isPartialContent) {
+        html = null;
+      }
+    }
+  }
+
+  // ── 3순위: extractHtml 결과 (```html 또는 <!DOCTYPE) → 이미 html에 세팅됨 ──
+
+  // chatText: 전체 응답에서 태그/코드블록 제거
   const chatText = text
     .replace(/<\/?spec>/g, "")
     .replace(/```html\s*\n[\s\S]*?```/g, "")
     .replace(/<!DOCTYPE html[\s\S]*?<\/html>/gi, "")
     .replace(/<partial-update>[\s\S]*?<\/partial-update>/g, "")
+    .replace(/<prototype_delta>[\s\S]*?<\/prototype_delta>/g, "")
     .trim();
 
   // ── 1차: <spec> 태그로 Spec 추출 ──
@@ -629,7 +758,7 @@ export function parseResponse(text: string, existingHtml?: string): ParsedRespon
       specSections: spec.match(/^## .+/gm)?.join(", ") ?? "(없음)",
     });
 
-    return { spec: spec || null, html: html || null, chatText, partialUpdate };
+    return { spec: spec || null, html: html || null, chatText, partialUpdate, deltaFailed };
   }
 
   // ── 2차: 알려진 섹션 패턴 매칭 (폴백) ──
@@ -641,5 +770,5 @@ export function parseResponse(text: string, existingHtml?: string): ParsedRespon
     specSections: spec?.match(/^## .+/gm)?.join(", ") ?? "(없음)",
   });
 
-  return { spec, html: html || null, chatText, partialUpdate };
+  return { spec, html: html || null, chatText, partialUpdate, deltaFailed };
 }
