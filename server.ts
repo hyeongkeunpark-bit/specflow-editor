@@ -162,6 +162,7 @@ app.post("/api/morph/apply", async (req, res) => {
     return res.status(501).json({ error: "MORPH_API_KEY not configured" });
   }
 
+  const startMs = Date.now();
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 12_000); // 12초 타임아웃
@@ -184,10 +185,11 @@ app.post("/api/morph/apply", async (req, res) => {
       signal: controller.signal,
     });
     clearTimeout(timer);
+    const elapsedMs = Date.now() - startMs;
 
     if (!morphRes.ok) {
       const errText = await morphRes.text();
-      console.error("[api/morph] Morph API error:", morphRes.status, errText.slice(0, 200));
+      console.error(`[api/morph] API error ${morphRes.status} (${elapsedMs}ms):`, errText.slice(0, 200));
       return res.status(502).json({ error: `Morph API error: ${morphRes.status}` });
     }
 
@@ -197,17 +199,19 @@ app.post("/api/morph/apply", async (req, res) => {
     const rawHtml = data.choices?.[0]?.message?.content?.trim();
 
     if (!rawHtml) {
-      console.error("[api/morph] Empty Morph response");
+      console.error(`[api/morph] Empty response (${elapsedMs}ms)`);
       return res.status(502).json({ error: "Empty Morph response" });
     }
 
     const sizeRatio = rawHtml.length / original.length;
-    console.log(`[api/morph] Morph applied: ${original.length} → ${rawHtml.length} chars (${sizeRatio.toFixed(1)}x)`);
+    console.log(`[api/morph] OK: ${original.length} → ${rawHtml.length} chars (${sizeRatio.toFixed(1)}x, ${elapsedMs}ms)`);
 
     return res.json({ html: rawHtml });
   } catch (error: any) {
-    console.error("[api/morph] Error:", error.message);
-    return res.status(500).json({ error: error.message });
+    const elapsedMs = Date.now() - startMs;
+    const isTimeout = error.name === "AbortError" || error.message?.includes("aborted");
+    console.error(`[api/morph] ${isTimeout ? "TIMEOUT" : "ERROR"} (${elapsedMs}ms):`, error.message);
+    return res.status(isTimeout ? 504 : 500).json({ error: error.message });
   }
 });
 

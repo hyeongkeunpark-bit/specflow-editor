@@ -85,7 +85,7 @@ function buildMessages(
         : `[현재 Spec 전문]\n(아직 생성되지 않음)`,
       `[현재 Prototype HTML]\n${specUpdateMode.htmlContent}`,
       `[Prototype 변경 이력]\n${changeLogText}`,
-      `위 내용을 기반으로 Spec을 생성/업데이트해 주세요.`,
+      `위 내용을 기반으로 Spec을 생성/업데이트해 주세요. 변경 이력에 있는 항목만 반영하고, 현재 Spec에 없는 기능을 추가하지 마세요. 시각적 변경만 있으면 Spec 변경 없이 안내만 해 주세요.`,
     ];
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else {
@@ -135,13 +135,45 @@ function buildMorphEdit(pairs: { search: string; replace: string }[]): string {
   return parts.join("\n") + "\n// ... existing code ...";
 }
 
+/** 퇴화 감지: 60자 서브스트링을 8곳에서 샘플링, 3회 이상 반복되면 LLM 루프 판정 */
+function hasDegeneration(html: string): boolean {
+  if (html.length < 500) return false;
+  const LEN = 60;
+  const SAMPLES = 8;
+  const step = Math.floor((html.length - LEN) / SAMPLES);
+
+  for (let i = 0; i < SAMPLES; i++) {
+    const pos = i * step;
+    const sub = html.slice(pos, pos + LEN);
+    let count = 0;
+    let idx = -1;
+    while ((idx = html.indexOf(sub, idx + 1)) >= 0) {
+      count++;
+      if (count >= 3) return true;
+    }
+  }
+  return false;
+}
+
 /** Morph 출력 유효성 검증 */
-function validateMorphOutput(html: string, originalLength: number): string | null {
+function validateMorphOutput(
+  html: string,
+  originalLength: number,
+  replaceParts?: string[],
+): string | null {
+  // 1. 크기 비율 검사 (1.5x 이내)
   const sizeRatio = html.length / originalLength;
-  if (sizeRatio > 2) {
+  if (sizeRatio > 1.5) {
     console.warn(`[morphApply] 거부: 크기 비율 ${sizeRatio.toFixed(1)}x`);
     return null;
   }
+  // 극단적 축소도 거부 (0.5x 미만)
+  if (sizeRatio < 0.5) {
+    console.warn(`[morphApply] 거부: 과도한 축소 ${sizeRatio.toFixed(2)}x`);
+    return null;
+  }
+
+  // 2. HTML 구조 검사
   if (!html.includes("<!DOCTYPE html") && !html.includes("<html")) {
     console.warn("[morphApply] 거부: HTML 구조 없음");
     return null;
@@ -150,6 +182,22 @@ function validateMorphOutput(html: string, originalLength: number): string | nul
     console.warn("[morphApply] 거부: </html> 없음");
     return null;
   }
+
+  // 3. 퇴화 감지 (반복 패턴)
+  if (hasDegeneration(html)) {
+    console.warn("[morphApply] 거부: 퇴화 감지 (반복 패턴)");
+    return null;
+  }
+
+  // 4. 내용 검증: replace 텍스트의 핵심 부분이 출력에 포함되어야 함
+  if (replaceParts && replaceParts.length > 0) {
+    const missingCount = replaceParts.filter((part) => !html.includes(part)).length;
+    if (missingCount === replaceParts.length) {
+      console.warn(`[morphApply] 거부: replace 내용 ${missingCount}/${replaceParts.length}개 누락`);
+      return null;
+    }
+  }
+
   return html;
 }
 
@@ -183,13 +231,18 @@ async function morphApply(existingHtml: string, fullText: string): Promise<strin
 
   const edit = buildMorphEdit(pairs);
 
+  // replace 텍스트의 핵심 부분 추출 (내용 검증용, 각 replace의 첫 30자)
+  const replaceParts = pairs
+    .map((p) => p.replace.trim().slice(0, 30))
+    .filter((p) => p.length >= 10);
+
   for (let attempt = 0; attempt <= MORPH_MAX_RETRIES; attempt++) {
     if (attempt > 0) console.warn(`[morphApply] 재시도 ${attempt}/${MORPH_MAX_RETRIES}`);
 
     const raw = await callMorph(existingHtml, edit);
     if (!raw) continue;
 
-    const validated = validateMorphOutput(raw, existingHtml.length);
+    const validated = validateMorphOutput(raw, existingHtml.length, replaceParts);
     if (validated) return validated;
   }
 
