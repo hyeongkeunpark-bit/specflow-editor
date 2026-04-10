@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Monitor, Smartphone, Link, FileText } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Monitor, Smartphone, Link, FileText, Wrench } from "lucide-react";
 import { toast } from "sonner";
+import { injectErrorCapture, isIframeErrorEvent, type IframeError } from "@/lib/iframeErrors";
 
 interface PrototypePanelProps {
   htmlContent: string;
@@ -14,6 +15,10 @@ interface PrototypePanelProps {
   onSpecUpdate?: () => void;
   /** [Prototype 생성] 버튼 클릭 (빈 상태 CTA) */
   onRequestPrototype?: () => void;
+  /** iframe 런타임 에러 발생 시 콜백 */
+  onErrors?: (errors: IframeError[]) => void;
+  /** "에러 자동 수정" 버튼 클릭 �� 콜백 */
+  onAutoFix?: () => void;
 }
 
 const PrototypePanel = ({
@@ -23,8 +28,52 @@ const PrototypePanel = ({
   isLoading = false,
   onSpecUpdate,
   onRequestPrototype,
+  onErrors,
+  onAutoFix,
 }: PrototypePanelProps) => {
   const [viewport, setViewport] = useState<"desktop" | "mobile">("desktop");
+  const [runtimeErrors, setRuntimeErrors] = useState<IframeError[]>([]);
+  const [blobUrl, setBlobUrl] = useState<string>("");
+  const prevBlobRef = useRef<string>("");
+
+  // htmlContent 변경 시 → blob URL 생성 + 에러 초기화
+  useEffect(() => {
+    setRuntimeErrors([]);
+
+    // 이전 blob URL 해제
+    if (prevBlobRef.current) {
+      URL.revokeObjectURL(prevBlobRef.current);
+      prevBlobRef.current = "";
+    }
+
+    if (!htmlContent) {
+      setBlobUrl("");
+      return;
+    }
+
+    const injected = injectErrorCapture(htmlContent);
+    const blob = new Blob([injected], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    setBlobUrl(url);
+    prevBlobRef.current = url;
+
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [htmlContent]);
+
+  // postMessage 리스너
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (isIframeErrorEvent(e.data)) {
+        setRuntimeErrors(e.data.errors);
+        onErrors?.(e.data.errors);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [onErrors]);
 
   const handleGenerateUrl = () => {
     const blob = new Blob([htmlContent], { type: "text/html" });
@@ -40,6 +89,27 @@ const PrototypePanel = ({
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-muted-foreground">⚡</span>
           <h2 className="text-sm font-semibold text-panel-header-foreground">Prototype Preview</h2>
+          {runtimeErrors.length > 0 && (
+            <>
+              <span
+                className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-destructive text-destructive-foreground cursor-help"
+                title={runtimeErrors.map(e => e.message).join("\n")}
+              >
+                {runtimeErrors.length} error{runtimeErrors.length > 1 ? "s" : ""}
+              </span>
+              {onAutoFix && (
+                <button
+                  onClick={onAutoFix}
+                  disabled={isLoading}
+                  className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="런타임 에러를 AI에게 자동 수정 요청"
+                >
+                  <Wrench className="w-2.5 h-2.5" />
+                  자동 수정
+                </button>
+              )}
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -94,16 +164,16 @@ const PrototypePanel = ({
       </div>
 
       <div className="flex-1 overflow-hidden flex items-center justify-center bg-card p-2">
-        {htmlContent ? (
+        {htmlContent && blobUrl ? (
           <div
             className={`h-full bg-foreground/5 rounded border transition-all ${
               viewport === "mobile" ? "w-[375px]" : "w-full"
             }`}
           >
             <iframe
-              srcDoc={htmlContent}
+              src={blobUrl}
               className="w-full h-full rounded"
-              sandbox="allow-scripts"
+              sandbox="allow-scripts allow-same-origin"
               title="Prototype Preview"
             />
           </div>

@@ -150,6 +150,86 @@ app.post("/api/chat/stream", async (req, res) => {
   }
 });
 
+// ── 에러 수정 전용 엔드포인트 ──
+
+const FIX_ERRORS_SYSTEM_PROMPT = `당신은 HTML 프로토타입의 JavaScript 런타임 에러를 수정하는 전문가입니다.
+
+## 규칙
+
+1. 제공된 에러 분석을 읽고 **원인 코드만 최소한으로 수정**합니다.
+2. 수정은 반드시 <prototype_delta> 형식으로 출력합니다:
+   <prototype_delta>
+   <search>기존 코드 (현재 HTML 원문 그대로)</search>
+   <replace>수정된 코드</replace>
+   </prototype_delta>
+3. **절대 금지:**
+   - 기존 기능, UI 요소, 입력 필드, 버튼을 제거하는 것
+   - 에러와 무관한 코드를 변경하는 것
+   - 전체 HTML을 다시 출력하는 것
+   - CSS나 디자인을 변경하는 것
+4. <search> 안의 텍스트는 [현재 Prototype HTML]에 **정확히 존재하는 원문**이어야 합니다.
+5. 대화 텍스트는 최소한으로. 수정 내용만 간결하게 설명합니다.
+
+## 흔한 에러 패턴
+
+- "X is not defined" (인라인 onclick에서) → onclick="X()"를 onclick="인스턴스.X()"로 수정하거나, 전역 함수로 래핑
+- "Cannot read properties of null" → DOM 로드 시점 문제. DOMContentLoaded 안으로 이동
+- "X is not a function" → 함수 정의 스코프 확인 후 호출 방식 수정
+- localStorage SecurityError (sandbox) → try-catch로 감싸기`;
+
+app.post("/api/chat/fix-errors", async (req, res) => {
+  const { html, errors } = req.body as { html: string; errors: string };
+
+  if (!html || !errors) {
+    return res.status(400).json({ error: "html and errors are required" });
+  }
+
+  // SSE 스트리밍
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  let fullResponse = "";
+
+  try {
+    const stream = anthropic.messages.stream({
+      model: MODEL,
+      max_tokens: 8192,
+      system: [{ type: "text", text: FIX_ERRORS_SYSTEM_PROMPT }],
+      messages: [
+        {
+          role: "user",
+          content: `[현재 Prototype HTML]\n${html}\n\n${errors}\n\n위 에러를 수정해주세요.`,
+        },
+      ],
+    });
+
+    stream.on("text", (text) => {
+      fullResponse += text;
+      res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+    });
+
+    stream.on("error", (error) => {
+      console.error("[api/chat/fix-errors] Stream error:", error.message);
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    });
+
+    stream.on("end", () => {
+      console.log(`[api/chat/fix-errors] 완료: ${fullResponse.length}자`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    });
+  } catch (error: any) {
+    console.error("[api/chat/fix-errors] Error:", error.message);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.write("data: [DONE]\n\n");
+    res.end();
+  }
+});
+
 // ── Morph Fast Apply 엔드포인트 ──
 
 app.post("/api/morph/apply", async (req, res) => {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useMemo } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -9,10 +9,11 @@ import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
-import { sendMessage } from "@/lib/api";
+import { sendMessage, fixErrors } from "@/lib/api";
 import type { SendOptions } from "@/lib/api";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
+import { formatErrorsForAI, tryClientPatch, type IframeError } from "@/lib/iframeErrors";
 import { FileText, Code2, History, Copy, Download, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,6 +43,15 @@ const Index = () => {
 
   // ── Prototype 변경 이력 (Spec 업데이트 시 전달용) ──
   const protoChangeLogRef = useRef<string[]>([]);
+
+  // ── iframe 런타임 에러 (다음 전송 시 포함) ──
+  const iframeErrorsRef = useRef<IframeError[]>([]);
+  const handleIframeErrors = useCallback((errors: IframeError[]) => {
+    iframeErrorsRef.current = errors;
+    if (errors.length > 0) {
+      console.log("[iframeErrors]", errors.map(e => e.message));
+    }
+  }, []);
 
   // ── 스트리밍 raw 텍스트 (노이즈 제거용) ──
   const rawStreamRef = useRef("");
@@ -79,9 +89,17 @@ const Index = () => {
     if (sendSpec) specDirtyRef.current = false;
     if (sendHtml) htmlDirtyRef.current = false;
 
+    // iframe 에러가 있으면 메시지에 자동 포함 후 리셋 (htmlContent로 코드 분석 포함)
+    const errorContext = formatErrorsForAI(iframeErrorsRef.current, activeSession.htmlContent || undefined);
+    if (errorContext) {
+      console.log("[handleSend] 런타임 에러 포함:", errorContext);
+      iframeErrorsRef.current = [];
+    }
+
     const options: SendOptions = {
       specContent: sendSpec,
       htmlContent: sendHtml,
+      runtimeErrors: errorContext || undefined,
       existingHtml: activeSession.htmlContent || undefined,
       onToken: (token) => {
         rawStreamRef.current += token;
@@ -185,6 +203,104 @@ const Index = () => {
       setIsLoading(false);
     }
   }, [setMessages, setSpecContent, setHtmlContent, setSnapshots, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
+
+  /** "에러 자동 수정" 버튼 핸들러 — 클라이언트 패치 우선, 실패 시 AI 폴백 */
+  const handleAutoFix = useCallback(async () => {
+    if (iframeErrorsRef.current.length === 0 || !activeSession.htmlContent) return;
+    const errors = [...iframeErrorsRef.current];
+    iframeErrorsRef.current = [];
+
+    // ── Step 1: 클라이언트 직접 패치 시도 (AI 호출 없음) ──
+    const clientPatch = tryClientPatch(activeSession.htmlContent, errors);
+    if (clientPatch) {
+      const patchSummary = clientPatch.applied.join(", ");
+      console.log("[autoFix] 클라이언트 패치 성공:", patchSummary);
+      setHtmlContent(clientPatch.html);
+      htmlDirtyRef.current = true;
+      setSnapshots((prev) => [
+        ...prev,
+        {
+          spec: activeSession.specContent,
+          html: clientPatch.html,
+          timestamp: Date.now(),
+          summary: "에러 자동 수정 (클라이언트)",
+          userMessage: patchSummary,
+        },
+      ]);
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now().toString(), role: "system" as const, content: `🔧 에러 자동 수정됨: ${patchSummary}` },
+      ]);
+      return;
+    }
+
+    // ── Step 2: 클라이언트 패치 불가 → AI 전용 엔드포인트 폴백 ──
+    const errorText = formatErrorsForAI(errors, activeSession.htmlContent);
+    if (!errorText) return;
+
+    setIsLoading(true);
+
+    const sysMsgId = `autofix-${Date.now()}`;
+    const aiMsgId = `autofix-ai-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: sysMsgId, role: "system" as const, content: "🔧 에러 자동 수정 중 (AI)..." },
+      { id: aiMsgId, role: "ai" as const, content: "" },
+    ]);
+    rawStreamRef.current = "";
+
+    try {
+      const response = await fixErrors(
+        activeSession.htmlContent,
+        errorText,
+        (token) => {
+          rawStreamRef.current += token;
+          const display = stripStreamingNoise(rawStreamRef.current);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === aiMsgId ? { ...m, content: display } : m)),
+          );
+        },
+      );
+
+      const chatContent = response.chatText.trim();
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
+      );
+
+      if (response.html) {
+        setHtmlContent(response.html);
+        htmlDirtyRef.current = true;
+        setSnapshots((prev) => [
+          ...prev,
+          {
+            spec: activeSession.specContent,
+            html: response.html!,
+            timestamp: Date.now(),
+            summary: "에러 자동 수정 (AI)",
+            userMessage: "런타임 에러 자동 수정",
+          },
+        ]);
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 에러 수정됨" },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 3).toString(), role: "system" as const, content: "⚠️ 자동 수정 실패 — delta 매칭 불가" },
+        ]);
+      }
+    } catch (err) {
+      const errContent = err instanceof Error
+        ? `에러 수정 실패: ${err.message}`
+        : "에러 수정 중 오류가 발생했습니다.";
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeSession.htmlContent, activeSession.specContent, setMessages, setHtmlContent, setSnapshots]);
 
   // ── [Spec 문서 업데이트] 버튼 핸들러 ──
   const handleSpecUpdate = useCallback(async () => {
@@ -320,6 +436,8 @@ const Index = () => {
               isLoading={isLoading}
               onSpecUpdate={handleSpecUpdate}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
+              onErrors={handleIframeErrors}
+              onAutoFix={handleAutoFix}
             />
           </ResizablePanel>
 

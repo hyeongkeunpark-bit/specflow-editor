@@ -33,6 +33,8 @@ export interface SendOptions {
     htmlContent: string;
     changeLog: string[];
   };
+  /** iframe에서 캡처된 JS 런타임 에러 (포맷팅된 문자열) */
+  runtimeErrors?: string;
   /** 스트리밍 토큰 콜백 */
   onToken?: (token: string) => void;
   /** 현재 Prototype HTML (partial update merge용 + str_replace tool용) */
@@ -52,7 +54,7 @@ function buildMessages(
 ): ApiMessage[] {
   const messages: ApiMessage[] = [];
 
-  const { specContent, htmlContent, specUpdateMode } = options;
+  const { specContent, htmlContent, specUpdateMode, runtimeErrors } = options;
 
   // Spec 업데이트 모드에서는 대화 이력을 최소화 (Prototype 생성 맥락이 방해)
   // 일반 모드에서는 최근 N개 대화 이력 포함
@@ -96,6 +98,9 @@ function buildMessages(
     }
     if (htmlContent) {
       contextParts.push(`[현재 Prototype HTML]\n${htmlContent}`);
+    }
+    if (runtimeErrors) {
+      contextParts.push(runtimeErrors);
     }
 
     let userContent = currentMessage;
@@ -265,6 +270,7 @@ async function requestFullHtmlFallback(
       content:
         `[수정 적용 실패 — 전체 HTML 재출력 필요]\n` +
         `위 수정사항을 반영하여 전체 HTML을 \`\`\`html 코드 블록으로 출력해주세요. 대화 텍스트 없이 HTML만 출력합니다.\n\n` +
+        `**중요:** 현재 HTML의 모든 기능, UI 요소, 입력 필드, 버튼을 그대로 유지하세요. 기존 요소를 제거하지 마세요. 요청된 수정사항만 반영하고 나머지는 원본 그대로 출력합니다.\n\n` +
         `[현재 Prototype HTML]\n${existingHtml}`,
     },
   ];
@@ -396,4 +402,76 @@ export async function sendMessage(
   const { onToken, existingHtml, ...buildOpts } = options;
   const messages = buildMessages(history, userMessage, buildOpts);
   return callChat(messages, onToken, existingHtml);
+}
+
+/**
+ * 에러 수정 전용 API — 대화 이력 없이 현재 HTML + 에러 분석만 전송.
+ * 전용 시스템 프롬프트를 사용하여 최소 수정만 수행.
+ */
+export async function fixErrors(
+  html: string,
+  errors: string,
+  onToken?: (token: string) => void,
+): Promise<ChatResponse> {
+  const res = await fetch("/api/chat/fix-errors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ html, errors }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `API error: ${res.status}`);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const event of events) {
+      const trimmed = event.trim();
+      if (!trimmed || !trimmed.startsWith("data: ")) continue;
+      const data = trimmed.slice(6);
+      if (data === "[DONE]") continue;
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        continue;
+      }
+
+      if (parsed.error) throw new Error(parsed.error);
+
+      const content = parsed.content;
+      if (content) {
+        fullText += content;
+        onToken?.(content);
+      }
+    }
+  }
+
+  // delta 파싱 (전용 프롬프트는 delta만 출력하므로 existingHtml 전달)
+  const parsed = parseResponse(fullText, html);
+  let { html: resultHtml } = parsed;
+  const { spec, chatText, partialUpdate, deltaFailed } = parsed;
+
+  // delta 실패 시 Morph 폴백만 시도 (Claude 전체 재출력은 안 함 — 기능 삭제 방지)
+  if (deltaFailed && !resultHtml) {
+    const morphResult = await morphApply(html, fullText);
+    if (morphResult) {
+      resultHtml = morphResult;
+    }
+  }
+
+  return { text: fullText, spec, html: resultHtml, chatText, partialUpdate };
 }
