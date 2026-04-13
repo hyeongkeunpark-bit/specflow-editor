@@ -39,6 +39,8 @@ export interface SendOptions {
   onToken?: (token: string) => void;
   /** 현재 Prototype HTML (partial update merge용 + str_replace tool용) */
   existingHtml?: string;
+  /** 취소 시그널 */
+  signal?: AbortSignal;
 }
 
 /**
@@ -314,12 +316,14 @@ async function fetchChatStream(
   messages: ApiMessage[],
   onToken?: (token: string) => void,
   existingHtml?: string,
+  signal?: AbortSignal,
 ): Promise<ChatResponse> {
   // existingHtml을 그대로 사용 — AI에게 보낸 포맷과 동일하게 delta 매칭
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),
+    signal,
   });
 
   if (!res.ok) {
@@ -401,13 +405,13 @@ async function fetchChatStream(
 }
 
 /** 단일 호출 — 스트리밍 우선, 504 시 1회 재시도 */
-async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string): Promise<ChatResponse> {
+async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string, signal?: AbortSignal): Promise<ChatResponse> {
   try {
-    return await fetchChatStream(messages, onToken, existingHtml);
+    return await fetchChatStream(messages, onToken, existingHtml, signal);
   } catch (err) {
     if (!is504(err)) throw err;
   }
-  return fetchChatStream(messages, onToken, existingHtml);
+  return fetchChatStream(messages, onToken, existingHtml, signal);
 }
 
 // ── 공개 API ──
@@ -420,9 +424,9 @@ export async function sendMessage(
   const dummy = matchDummy(userMessage);
   if (dummy) return dummy;
 
-  const { onToken, existingHtml, ...buildOpts } = options;
+  const { onToken, existingHtml, signal, ...buildOpts } = options;
   const messages = buildMessages(history, userMessage, buildOpts);
-  return callChat(messages, onToken, existingHtml);
+  return callChat(messages, onToken, existingHtml, signal);
 }
 
 /**

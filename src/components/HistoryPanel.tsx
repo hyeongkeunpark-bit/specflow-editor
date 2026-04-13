@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { History, RotateCcw, PanelRightClose, ArrowLeft } from "lucide-react";
+import { useState, useMemo } from "react";
+import { History, RotateCcw, PanelRightClose, ArrowLeft, Code2, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -18,12 +18,14 @@ import type { Snapshot } from "@/lib/types";
 interface HistoryPanelProps {
   snapshots: Snapshot[];
   onRestore: (index: number) => void;
+  onScrollToMessage?: (timestamp: number) => void;
   onClose?: () => void;
 }
 
-const HistoryPanel = ({ snapshots, onRestore, onClose }: HistoryPanelProps) => {
+const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: HistoryPanelProps) => {
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
   const [viewingIndex, setViewingIndex] = useState<number | null>(null);
+  const [detailTab, setDetailTab] = useState<"prototype" | "spec">("prototype");
 
   const formatTime = (ts: number) => {
     const d = new Date(ts);
@@ -75,16 +77,57 @@ const HistoryPanel = ({ snapshots, onRestore, onClose }: HistoryPanelProps) => {
           </p>
         </div>
 
-        {/* Spec content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {snap.spec ? (
-            <div className="markdown-body text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{snap.spec}</ReactMarkdown>
-            </div>
+        {/* Prototype / Spec 토글 */}
+        <div className="flex border-b px-4">
+          <button
+            onClick={() => setDetailTab("prototype")}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+              detailTab === "prototype"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Code2 className="w-3 h-3" /> Prototype
+          </button>
+          <button
+            onClick={() => setDetailTab("spec")}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+              detailTab === "spec"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <FileText className="w-3 h-3" /> Spec
+          </button>
+        </div>
+
+        {/* 콘텐츠 */}
+        <div className="flex-1 overflow-y-auto">
+          {detailTab === "prototype" ? (
+            snap.html ? (
+              <iframe
+                srcDoc={snap.html}
+                className="w-full h-full border-0"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads allow-pointer-lock allow-orientation-lock allow-presentation"
+                title={`Prototype v${version}`}
+              />
+            ) : (
+              <p className="text-muted-foreground text-sm text-center mt-8">
+                이 버전에 Prototype이 없습니다.
+              </p>
+            )
           ) : (
-            <p className="text-muted-foreground text-sm text-center mt-8">
-              이 버전에 Spec 내용이 없습니다.
-            </p>
+            <div className="p-4">
+              {snap.spec ? (
+                <div className="markdown-body text-sm">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{snap.spec}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm text-center mt-8">
+                  이 버전에 Spec 내용이 없습니다.
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -155,6 +198,17 @@ const HistoryPanel = ({ snapshots, onRestore, onClose }: HistoryPanelProps) => {
                         )}
                       </div>
                       <p className="text-xs text-foreground/80 leading-relaxed truncate">{snap.summary}</p>
+                      {onScrollToMessage && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onScrollToMessage(snap.timestamp);
+                          }}
+                          className="text-[10px] text-primary/60 hover:text-primary mt-0.5"
+                        >
+                          채팅으로 이동
+                        </button>
+                      )}
                     </div>
                     {!isCurrent && (
                       <button
@@ -204,8 +258,7 @@ function RestoreDialog({
           <AlertDialogTitle>이 버전으로 되돌리시겠습니까?</AlertDialogTitle>
           <AlertDialogDescription>
             v{confirmIndex !== null ? confirmIndex + 1 : ""}로 되돌립니다.
-            되돌린 시점 이후의 모든 작업은 영구적으로 삭제됩니다.
-            이 작업은 취소할 수 없습니다.
+            기존 히스토리는 유지되며, "되돌림" 버전이 새로 추가됩니다.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

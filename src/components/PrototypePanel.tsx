@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Monitor, Smartphone, Link, FileText, Wrench } from "lucide-react";
+import { Monitor, Smartphone, Link, FileText, Wrench, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { injectErrorCapture, isIframeErrorEvent, type IframeError } from "@/lib/iframeErrors";
 
@@ -61,6 +61,20 @@ const PrototypePanel = ({
     return () => {
       URL.revokeObjectURL(url);
     };
+  }, [htmlContent]);
+
+  // iframe 새로고침 — blob URL 재생성으로 iframe 리로드
+  const handleRefresh = useCallback(() => {
+    if (!htmlContent) return;
+    if (prevBlobRef.current) {
+      URL.revokeObjectURL(prevBlobRef.current);
+    }
+    setRuntimeErrors([]);
+    const injected = injectErrorCapture(htmlContent);
+    const blob = new Blob([injected], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    setBlobUrl(url);
+    prevBlobRef.current = url;
   }, [htmlContent]);
 
   // postMessage 리스너
@@ -138,6 +152,13 @@ const PrototypePanel = ({
             <>
               <div className="w-px h-4 bg-border mx-1" />
               <button
+                onClick={handleRefresh}
+                className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+                title="새로고침"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+              <button
                 onClick={handleGenerateUrl}
                 className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
                 title="URL 생성"
@@ -167,7 +188,7 @@ const PrototypePanel = ({
         {htmlContent && blobUrl ? (
           <div
             className={`h-full bg-foreground/5 rounded border transition-all ${
-              viewport === "mobile" ? "w-[375px]" : "w-full"
+              viewport === "mobile" ? "w-[375px] max-w-full" : "w-full max-w-[1280px]"
             }`}
           >
             <iframe

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Paperclip, Menu, Plus, Trash2 } from "lucide-react";
+import { Send, Paperclip, Menu, Plus, Trash2, Square } from "lucide-react";
 import type { ChatMessage, Session } from "@/lib/types";
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ import {
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (message: string) => void;
+  onCancel?: () => void;
   isLoading?: boolean;
   sessions: Session[];
   activeSessionId: string;
@@ -43,6 +44,7 @@ const WELCOME_MESSAGE = `Product Spec을 함께 만들어 보겠습니다.
 const ChatPanel = ({
   messages,
   onSend,
+  onCancel,
   isLoading = false,
   sessions,
   activeSessionId,
@@ -58,6 +60,7 @@ const ChatPanel = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isAtBottomRef = useRef(true);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const checkIsAtBottom = () => {
     const el = messagesContainerRef.current;
@@ -66,12 +69,18 @@ const ChatPanel = ({
   };
 
   const handleScroll = () => {
-    isAtBottomRef.current = checkIsAtBottom();
+    const atBottom = checkIsAtBottom();
+    isAtBottomRef.current = atBottom;
+    setShowScrollBtn(!atBottom);
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     if (isAtBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      scrollToBottom();
     }
   }, [messages]);
 
@@ -184,6 +193,7 @@ const ChatPanel = ({
           ) : (
             <div
               key={msg.id}
+              id={`msg-${msg.id}`}
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
@@ -218,6 +228,18 @@ const ChatPanel = ({
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* ↓ 최신 메시지 플로팅 버튼 */}
+      {showScrollBtn && (
+        <div className="relative">
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:opacity-90 transition-opacity z-10"
+          >
+            ↓ 최신 메시지
+          </button>
+        </div>
+      )}
 
       {/* Footer notice */}
       <div className="px-3 pb-1">
@@ -258,13 +280,23 @@ const ChatPanel = ({
             rows={1}
             className="flex-1 bg-transparent text-foreground text-sm resize-none outline-none placeholder:text-muted-foreground min-h-[24px] max-h-[160px] disabled:opacity-50"
           />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-            className="p-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          {isLoading ? (
+            <button
+              onClick={onCancel}
+              className="p-2 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity shrink-0"
+              title="답변 중단"
+            >
+              <Square className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className="p-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
       <AlertDialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>

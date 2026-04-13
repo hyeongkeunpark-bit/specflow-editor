@@ -37,6 +37,14 @@ const Index = () => {
   const [isDark, setIsDark] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // ── 스트리밍 취소용 AbortController ──
+  const abortRef = useRef<AbortController | null>(null);
+  const handleCancel = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
+  }, []);
+
   // ── dirty 플래그: 변경 후 다음 전송 시 1회 포함 ──
   const specDirtyRef = useRef(false);
   const htmlDirtyRef = useRef(false);
@@ -92,6 +100,10 @@ const Index = () => {
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
+    // 취소용 AbortController 생성
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     // 스트리밍용 AI 메시지 placeholder
     const aiMsgId = (Date.now() + 1).toString();
     setMessages((prev) => [...prev, { id: aiMsgId, role: "ai" as const, content: "" }]);
@@ -110,6 +122,7 @@ const Index = () => {
       specContent: sendSpec,
       htmlContent: sendHtml,
       existingHtml: activeSession.htmlContent || undefined,
+      signal: controller.signal,
       onToken: (token) => {
         rawStreamRef.current += token;
         const display = stripStreamingNoise(rawStreamRef.current);
@@ -203,16 +216,24 @@ const Index = () => {
         ]);
       }
     } catch (err) {
-      const errContent = err instanceof Error
-        ? `오류가 발생했습니다: ${err.message}`
-        : "요청 처리 중 오류가 발생했습니다. 다시 시도해주세요.";
-      setMessages((prev) =>
-        prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
-      );
+      // 취소된 경우 조용히 처리
+      if (err instanceof DOMException && err.name === "AbortError") {
+        const partial = rawStreamRef.current.trim();
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: partial || "(취소됨)" } : m)),
+        );
+      } else {
+        const errContent = err instanceof Error
+          ? `오류가 발생했습니다: ${err.message}`
+          : "요청 처리 중 오류가 발생했습니다. 다시 시도해주세요.";
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
+        );
+      }
       // 전송 실패 시 dirty 복원
       if (sendSpec) specDirtyRef.current = true;
-      if (sendHtml) htmlDirtyRef.current = true;
     } finally {
+      abortRef.current = null;
       setIsLoading(false);
     }
   }, [setMessages, setSpecContent, setHtmlContent, setSnapshots, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
@@ -406,7 +427,17 @@ const Index = () => {
     setHtmlContent(snap.html);
     if (snap.spec !== activeSession.specContent) specDirtyRef.current = true;
     if (snap.html !== activeSession.htmlContent) htmlDirtyRef.current = true;
-    setSnapshots((prev) => prev.slice(0, index + 1));
+    // 비파괴적 되돌리기: 이전 스냅샷 유지 + "되돌림" 스냅샷 추가
+    setSnapshots((prev) => [
+      ...prev,
+      {
+        spec: snap.spec,
+        html: snap.html,
+        timestamp: Date.now(),
+        summary: `v${index + 1}로 되돌림`,
+        userMessage: `v${index + 1} 복원`,
+      },
+    ]);
     toast.success(`v${index + 1}로 되돌렸습니다`);
   };
 
@@ -414,13 +445,32 @@ const Index = () => {
     setActivePanel((prev) => (prev === panel ? null : panel));
   };
 
+  // 히스토리 → 채팅 스크롤: 스냅샷 timestamp와 가장 가까운 메시지로 스크롤
+  const handleScrollToMessage = useCallback((timestamp: number) => {
+    // 메시지 ID는 Date.now() 기반이므로 timestamp에 가장 가까운 메시지를 찾음
+    const msgs = activeSession.messages;
+    let closest: ChatMessage | null = null;
+    let minDiff = Infinity;
+    for (const m of msgs) {
+      const diff = Math.abs(Number(m.id) - timestamp);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = m;
+      }
+    }
+    if (closest && minDiff < 60_000) { // 1분 이내
+      const el = document.getElementById(`msg-${closest.id}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [activeSession.messages]);
+
   // Prototype 변경 이력이 있으면 Spec 업데이트 버튼 활성화
   const hasProtoChanges = protoChangeLogRef.current.length > 0;
 
   const sidePanelContent = activePanel && (
     activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onClose={() => setActivePanel(null)} /> :
     activePanel === "code" ? <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} /> :
-    activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onClose={() => setActivePanel(null)} /> :
+    activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onScrollToMessage={handleScrollToMessage} onClose={() => setActivePanel(null)} /> :
     null
   );
 
@@ -433,6 +483,7 @@ const Index = () => {
             <ChatPanel
               messages={activeSession.messages}
               onSend={handleSend}
+              onCancel={handleCancel}
               isLoading={isLoading}
               sessions={sessions}
               activeSessionId={activeSessionId}
