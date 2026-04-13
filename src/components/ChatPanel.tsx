@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { Send, Paperclip, Menu, Plus, Trash2, Square, X } from "lucide-react";
 import type { ChatMessage, Session } from "@/lib/types";
 import { isImageFile, validateFileSize, resizeImage, type ResizedImage } from "@/lib/imageResize";
+import { isPdfFile, extractPdfText } from "@/lib/pdfExtract";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -130,38 +131,50 @@ const ChatPanel = ({
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    e.target.value = "";
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    // FileList를 즉시 배열로 복사 (input reset 전에)
+    const files = Array.from(fileList);
+    // 같은 파일 재선택을 허용하기 위해 리셋 (setTimeout으로 지연)
+    setTimeout(() => { e.target.value = ""; }, 0);
 
-    for (const file of Array.from(files)) {
-      if (isImageFile(file)) {
-        const sizeError = validateFileSize(file);
-        if (sizeError) {
-          alert(`${file.name}: ${sizeError}`);
-          continue;
-        }
-        if (pendingImages.length >= MAX_IMAGES) {
-          alert(`이미지는 최대 ${MAX_IMAGES}장까지 첨부할 수 있습니다.`);
-          break;
-        }
-        try {
-          const resized = await resizeImage(file);
-          setPendingImages((prev) => [...prev, resized].slice(0, MAX_IMAGES));
-        } catch (err) {
-          alert(`${file.name}: 이미지 처리 실패`);
-        }
-      } else {
-        // 텍스트/HTML 파일 → 전송 대기
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const text = ev.target?.result as string;
+    const processFiles = async () => {
+      for (const file of files) {
+        if (isImageFile(file)) {
+          const sizeError = validateFileSize(file);
+          if (sizeError) {
+            alert(`${file.name}: ${sizeError}`);
+            continue;
+          }
+          try {
+            const resized = await resizeImage(file);
+            setPendingImages((prev) => {
+              if (prev.length >= MAX_IMAGES) {
+                alert(`이미지는 최대 ${MAX_IMAGES}장까지 첨부할 수 있습니다.`);
+                return prev;
+              }
+              return [...prev, resized];
+            });
+          } catch (err) {
+            alert(`${file.name}: 이미지 처리 실패`);
+          }
+        } else if (isPdfFile(file)) {
+          // PDF → 텍스트 추출 → 전송 대기
+          try {
+            const text = await extractPdfText(file);
+            if (text) setPendingTextFile({ name: file.name, content: text });
+          } catch (err) {
+            alert(`${file.name}: PDF 텍스트 추출 실패`);
+          }
+        } else {
+          // 텍스트/HTML 파일 → 전송 대기
+          const text = await file.text();
           if (text) setPendingTextFile({ name: file.name, content: text });
-        };
-        reader.readAsText(file);
+        }
       }
-    }
+    };
+    processFiles();
   };
 
   const formatDate = (ts: number) => {
@@ -323,7 +336,7 @@ const ChatPanel = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.md,.html,.png,.jpg,.jpeg,.gif,.webp"
+            accept=".txt,.md,.html,.pdf,.png,.jpg,.jpeg,.gif,.webp"
             multiple
             className="hidden"
             onChange={handleFileChange}
