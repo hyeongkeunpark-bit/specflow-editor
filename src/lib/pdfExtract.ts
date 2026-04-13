@@ -3,15 +3,22 @@
  * pdfjs-dist를 동적 import하여 번들 크기 최소화
  */
 
+// Vite가 워커 파일을 static asset으로 서빙
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+let workerInitialized = false;
+
 /** PDF 파일에서 텍스트 추출 */
 export async function extractPdfText(file: File): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist");
 
-  // 워커 없이 메인 스레드에서 처리 (설정 간소화)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+  if (!workerInitialized) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+    workerInitialized = true;
+  }
 
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
 
   const pages: string[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
