@@ -67,10 +67,21 @@ function buildMessages(
 
     for (const m of relevant) {
       if (m.role === "user") {
-        messages.push({ role: "user", content: m.content });
+        // 사용자 메시지에서 컨텍스트(HTML/Spec) 제거 → 요청 텍스트만 유지
+        // (현재 HTML/Spec은 매 요청에 새로 포함되므로 이력에서는 불필요)
+        let userContent = m.content;
+        const reqIdx = userContent.indexOf("[요청]\n");
+        if (reqIdx >= 0) {
+          userContent = userContent.slice(reqIdx + "[요청]\n".length);
+        }
+        messages.push({ role: "user", content: userContent });
       } else {
-        // AI 응답에서 <spec> 블록 제거 → 대화 맥락만 유지
-        const cleaned = m.content.replace(/<spec>[\s\S]*?<\/spec>/g, "(Spec 내용 — 현재 버전 참조)").trim();
+        // AI 응답에서 <spec>, delta, HTML 블록 제거 → 채팅 텍스트만 유지
+        const cleaned = m.content
+          .replace(/<spec>[\s\S]*?<\/spec>/g, "")
+          .replace(/<prototype_delta>[\s\S]*?<\/prototype_delta>/g, "")
+          .replace(/```html[\s\S]*?```/g, "")
+          .trim();
         messages.push({ role: "assistant", content: cleaned });
       }
     }

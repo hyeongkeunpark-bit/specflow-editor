@@ -74,16 +74,23 @@ app.post("/api/chat", async (req, res) => {
       model: MODEL,
       max_tokens: 16384,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
-      messages: messages.map((m) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: m.content,
-      })),
+      messages: messages.map((m, i) => {
+        const role = m.role === "assistant" ? "assistant" as const : "user" as const;
+        if (i === messages.length - 2 && messages.length >= 2) {
+          return {
+            role,
+            content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const } }],
+          };
+        }
+        return { role, content: m.content };
+      }),
     });
 
     const text =
       response.content[0].type === "text" ? response.content[0].text : "";
 
-    console.log(`[api/chat] Response: ${text.length} chars`);
+    const u = response.usage as any;
+    console.log(`[api/chat] Response: ${text.length} chars | input: ${u?.input_tokens} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens}`);
     return res.status(200).json({ text });
   } catch (error: any) {
     console.error("[api/chat] Error:", error.message);
@@ -116,10 +123,19 @@ app.post("/api/chat/stream", async (req, res) => {
       model: MODEL,
       max_tokens: 16384,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
-      messages: messages.map((m) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: m.content,
-      })),
+      // 마지막 메시지 직전까지 캐싱 — 이전 대화 이력을 캐시하여 input 비용 절감
+      messages: messages.map((m, i) => {
+        const role = m.role === "assistant" ? "assistant" as const : "user" as const;
+        // 마지막에서 2번째 메시지에 cache breakpoint 설정
+        // → 시스템 프롬프트 + 이전 대화 이력이 캐시됨, 새 메시지만 정가
+        if (i === messages.length - 2 && messages.length >= 2) {
+          return {
+            role,
+            content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const } }],
+          };
+        }
+        return { role, content: m.content };
+      }),
     });
 
     stream.on("text", (text) => {
@@ -135,7 +151,9 @@ app.post("/api/chat/stream", async (req, res) => {
     });
 
     stream.on("end", () => {
+      const u = stream.currentMessageSnapshot?.usage as any;
       console.log("[api/chat/stream] Stream completed");
+      console.log(`[api/chat/stream] input: ${u?.input_tokens} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens}`);
       console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
       console.log(fullResponse.slice(0, 500));
       console.log("전체 길이:", fullResponse.length, "자");
