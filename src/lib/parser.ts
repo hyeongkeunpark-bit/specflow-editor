@@ -2,6 +2,7 @@
  * AI 응답 텍스트에서 HTML과 Spec을 분리하는 파서
  */
 import { debugLog } from "./debug";
+import { recordDelta } from "./deltaStats";
 
 // ── Spec 정규화: AI가 ## 헤더 없이 출력한 내용을 올바른 섹션에 배치 ──
 
@@ -513,107 +514,14 @@ function fuzzyReplace(html: string, search: string, replace: string): string | n
   return html.slice(0, startIdx) + replace + html.slice(endIdx);
 }
 
-// ── CSS 값 관용 매칭 (normalized match) ──
+// normalizedReplace (CSS 값 관용 매칭) 제거됨
+// 이유: 테스트 결과 실제 사용 사례 없음. exact → fuzzy → Morph 폴백이 더 안정적.
 
-/** regex 특수문자 이스케이프 */
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * CSS 값 관용 매칭: AI가 CSS 값을 부정확하게 쓴 경우를 허용.
- *
- * 작동 원리:
- * 1. search 텍스트에서 CSS 값(hex 컬러, 숫자+단위, 키워드)을 찾음
- * 2. 해당 부분을 유연한 regex 패턴으로 치환 (나머지는 리터럴 유지)
- * 3. 원본 HTML에서 정확히 1곳 매칭 시 교체
- *
- * 예: search "position:absolute;background:#ffd700"
- * → regex  "position:[\w-]+;background:#[0-9a-fA-F]{3,8}"
- * → 원본 "position:fixed;background:#ffeb3b" 매칭 성공
- */
-function normalizedReplace(html: string, search: string, replace: string): string | null {
-  if (search.length < 20) return null;
-
-  // CSS 값 패턴: CSS 변수, hex 컬러, 숫자+단위, rgba/hsla, 키워드(:뒤)
-  const FLEX_RE =
-    /var\(--[a-zA-Z0-9-]+\)|#[0-9a-fA-F]{3,8}|\d+(?:\.\d+)?(?:px|em|rem|%|vh|vw|vmin|vmax|s|ms|deg|fr)|rgba?\([^)]+\)|hsla?\([^)]+\)|:(?:fixed|absolute|relative|sticky|static|flex|block|inline-block|inline|grid|none|hidden|visible|scroll|auto|inherit|initial|unset|center|left|right|justify|stretch|baseline|row|column|wrap|nowrap|space-between|space-around|space-evenly|bold|normal|italic|underline|uppercase|lowercase|capitalize|pointer|default|text)\b/g;
-
-  const segments: { text: string; isFixed: boolean }[] = [];
-  let lastIdx = 0;
-  let flexCount = 0;
-  let m: RegExpExecArray | null;
-
-  while ((m = FLEX_RE.exec(search)) !== null) {
-    if (m.index > lastIdx) {
-      segments.push({ text: search.slice(lastIdx, m.index), isFixed: true });
-    }
-    segments.push({ text: m[0], isFixed: false });
-    flexCount++;
-    lastIdx = m.index + m[0].length;
-  }
-  if (lastIdx < search.length) {
-    segments.push({ text: search.slice(lastIdx), isFixed: true });
-  }
-
-  if (flexCount === 0) return null; // flex 대상 없음 → exact에서 이미 처리됐어야 함
-
-  // 안전장치: 고정 텍스트가 충분해야 오탐 방지
-  const fixedLength = segments
-    .filter((s) => s.isFixed)
-    .reduce((sum, s) => sum + s.text.length, 0);
-  if (fixedLength < 15) return null;
-
-  // regex 패턴 조립
-  let pattern = "";
-  for (const seg of segments) {
-    if (seg.isFixed) {
-      pattern += escapeRegex(seg.text);
-    } else {
-      const val = seg.text;
-      // CSS 색상 값 (var, hex, rgba, hsla) → 상호 호환 패턴
-      const CSS_COLOR_PATTERN = "(?:var\\(--[a-zA-Z0-9-]+\\)|#[0-9a-fA-F]{3,8}|rgba?\\([^)]+\\)|hsla?\\([^)]+\\))";
-      if (val.startsWith("var(")) {
-        pattern += CSS_COLOR_PATTERN;
-      } else if (val.startsWith("#")) {
-        pattern += CSS_COLOR_PATTERN;
-      } else if (/^rgba?\(/.test(val)) {
-        pattern += CSS_COLOR_PATTERN;
-      } else if (/^hsla?\(/.test(val)) {
-        pattern += CSS_COLOR_PATTERN;
-      } else if (val.startsWith(":")) {
-        pattern += ":[\\w-]+";
-      } else {
-        // 숫자+단위
-        pattern += "[\\d.]+(?:px|em|rem|%|vh|vw|vmin|vmax|s|ms|deg|fr)";
-      }
-    }
-  }
-
-  try {
-    const regex = new RegExp(pattern, "g");
-    const allMatches: RegExpExecArray[] = [];
-    let rm: RegExpExecArray | null;
-    while ((rm = regex.exec(html)) !== null) {
-      allMatches.push(rm);
-      if (allMatches.length > 1) break; // 2개 이상이면 유일성 실패, 즉시 중단
-    }
-
-    if (allMatches.length !== 1) return null;
-
-    const theMatch = allMatches[0];
-    return html.slice(0, theMatch.index) + replace + html.slice(theMatch.index + theMatch[0].length);
-  } catch {
-    return null; // 잘못된 regex (방어)
-  }
-}
-
-/** 기존 HTML에 delta들을 순서대로 적용. exact → fuzzy → normalized 3단계 매칭. 하나라도 실패하면 null 반환. */
+/** 기존 HTML에 delta들을 순서대로 적용. exact → fuzzy 2단계 매칭. 하나라도 실패하면 null → Morph 폴백. */
 export function applyPrototypeDeltas(html: string, deltas: PrototypeDelta[]): string | null {
   let result = html;
   let exactCount = 0;
   let fuzzyCount = 0;
-  let normalizedCount = 0;
 
   for (const delta of deltas) {
     // 1차: exact match
@@ -631,18 +539,6 @@ export function applyPrototypeDeltas(html: string, deltas: PrototypeDelta[]): st
       continue;
     }
 
-    // 3차: normalized match (CSS 값 관용 매칭)
-    const normalizedResult = normalizedReplace(result, delta.search, delta.replace);
-    if (normalizedResult) {
-      result = normalizedResult;
-      normalizedCount++;
-      debugLog("applyPrototypeDeltas normalized", {
-        search: delta.search.slice(0, 120),
-        method: "CSS 값 관용 매칭 성공",
-      });
-      continue;
-    }
-
     // 실패 — 디버그: search의 첫 키워드로 원본 HTML에서 관련 부분 찾아 비교
     const firstToken = delta.search.match(/[.#\w-]+\{/)?.[0] || delta.search.slice(0, 20);
     const idx = result.indexOf(firstToken);
@@ -650,16 +546,19 @@ export function applyPrototypeDeltas(html: string, deltas: PrototypeDelta[]): st
     debugLog("applyPrototypeDeltas FAIL", {
       search: delta.search.slice(0, 120),
       원본_근처: nearby.slice(0, 120),
-      method: "exact+fuzzy+normalized 모두 실패",
+      method: "exact+fuzzy 모두 실패 → Morph 폴백",
     });
     return null;
   }
+
+  // 직접 매칭 성공
+  const resolvedBy = exactCount >= fuzzyCount ? "exact" as const : "fuzzy" as const;
+  recordDelta(deltas.length, resolvedBy, { exact: exactCount, fuzzy: fuzzyCount, normalized: 0 });
 
   debugLog("applyPrototypeDeltas OK", {
     count: `${deltas.length}개`,
     exact: `${exactCount}`,
     fuzzy: `${fuzzyCount}`,
-    normalized: `${normalizedCount}`,
     resultLength: result.length,
   });
   return result;

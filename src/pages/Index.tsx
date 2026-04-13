@@ -44,14 +44,28 @@ const Index = () => {
   // ── Prototype 변경 이력 (Spec 업데이트 시 전달용) ──
   const protoChangeLogRef = useRef<string[]>([]);
 
-  // ── iframe 런타임 에러 (다음 전송 시 포함) ──
+  // ── iframe 런타임 에러 ──
   const iframeErrorsRef = useRef<IframeError[]>([]);
+  // Morph 적용 후 자동 에러 수정 플래그 (1회만 실행)
+  const autoFixPendingRef = useRef(false);
   const handleIframeErrors = useCallback((errors: IframeError[]) => {
     iframeErrorsRef.current = errors;
     if (errors.length > 0) {
       console.log("[iframeErrors]", errors.map(e => e.message));
+      // Morph 적용 직후 에러 → 자동 수정 트리거
+      if (autoFixPendingRef.current && !isLoading) {
+        autoFixPendingRef.current = false;
+        console.log("[autoFix] Morph 후 에러 감지 → 자동 수정 실행");
+        // setTimeout으로 현재 렌더 사이클 이후 실행
+        setTimeout(() => handleAutoFixRef.current(), 100);
+      }
+    } else {
+      autoFixPendingRef.current = false;
     }
-  }, []);
+  }, [isLoading]);
+
+  // handleAutoFix를 ref로 참조 (handleIframeErrors에서 순환 의존 방지)
+  const handleAutoFixRef = useRef<() => void>(() => {});
 
   // ── 스트리밍 raw 텍스트 (노이즈 제거용) ──
   const rawStreamRef = useRef("");
@@ -83,23 +97,18 @@ const Index = () => {
     setMessages((prev) => [...prev, { id: aiMsgId, role: "ai" as const, content: "" }]);
     rawStreamRef.current = "";
 
-    // dirty 플래그 체크 후 리셋
+    // Spec은 dirty일 때만, HTML은 존재하면 항상 전송
+    // (HTML을 안 보내면 AI가 현재 프로토타입을 모르고 새로 만들거나 라벨을 search에 씀)
     const sendSpec = specDirtyRef.current ? activeSession.specContent || undefined : undefined;
-    const sendHtml = htmlDirtyRef.current ? activeSession.htmlContent || undefined : undefined;
+    const sendHtml = activeSession.htmlContent || undefined;
     if (sendSpec) specDirtyRef.current = false;
-    if (sendHtml) htmlDirtyRef.current = false;
 
-    // iframe 에러가 있으면 메시지에 자동 포함 후 리셋 (htmlContent로 코드 분석 포함)
-    const errorContext = formatErrorsForAI(iframeErrorsRef.current, activeSession.htmlContent || undefined);
-    if (errorContext) {
-      console.log("[handleSend] 런타임 에러 포함:", errorContext);
-      iframeErrorsRef.current = [];
-    }
+    // 런타임 에러는 일반 채팅에 포함하지 않음 — 자동 수정 버튼으로만 처리
+    // (에러 컨텍스트가 AI를 혼란시켜 delta search 부정확 → 매칭 실패 원인)
 
     const options: SendOptions = {
       specContent: sendSpec,
       htmlContent: sendHtml,
-      runtimeErrors: errorContext || undefined,
       existingHtml: activeSession.htmlContent || undefined,
       onToken: (token) => {
         rawStreamRef.current += token;
@@ -172,6 +181,10 @@ const Index = () => {
       if (response.html) {
         setHtmlContent(response.html);
         htmlDirtyRef.current = true;
+        // Morph/Claude 폴백으로 적용된 경우 → iframe 에러 발생 시 자동 수정 예약
+        if (response.morphApplied) {
+          autoFixPendingRef.current = true;
+        }
         // Prototype 변경 이력에 추가
         protoChangeLogRef.current.push(text);
         setSnapshots((prev) => [
@@ -301,6 +314,9 @@ const Index = () => {
       setIsLoading(false);
     }
   }, [activeSession.htmlContent, activeSession.specContent, setMessages, setHtmlContent, setSnapshots]);
+
+  // handleAutoFix ref 업데이트 (handleIframeErrors에서 참조)
+  handleAutoFixRef.current = handleAutoFix;
 
   // ── [Spec 문서 업데이트] 버튼 핸들러 ──
   const handleSpecUpdate = useCallback(async () => {

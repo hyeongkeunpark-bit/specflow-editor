@@ -1,5 +1,7 @@
-import { parseResponse } from "./parser";
+import { parseResponse, extractPrototypeDeltas } from "./parser";
 import { matchDummy } from "./dummyResponse";
+import { recordDelta } from "./deltaStats";
+// prettifyHtml 제거: minified → prettified 변환이 AI의 search 텍스트 형식 불일치를 악화시킴
 import type { ChatMessage } from "./types";
 
 export interface ChatResponse {
@@ -33,8 +35,6 @@ export interface SendOptions {
     htmlContent: string;
     changeLog: string[];
   };
-  /** iframe에서 캡처된 JS 런타임 에러 (포맷팅된 문자열) */
-  runtimeErrors?: string;
   /** 스트리밍 토큰 콜백 */
   onToken?: (token: string) => void;
   /** 현재 Prototype HTML (partial update merge용 + str_replace tool용) */
@@ -54,7 +54,9 @@ function buildMessages(
 ): ApiMessage[] {
   const messages: ApiMessage[] = [];
 
-  const { specContent, htmlContent, specUpdateMode, runtimeErrors } = options;
+  const { specContent, htmlContent, specUpdateMode } = options;
+  // runtimeErrors는 일반 채팅에 포함하지 않음 — 에러 수정은 자동 수정 버튼(/api/chat/fix-errors)으로만 처리
+  // 이유: 에러 컨텍스트가 포함되면 AI가 에러 수정 + 수정 요청을 동시 처리하다가 delta search 텍스트를 부정확하게 작성
 
   // Spec 업데이트 모드에서는 대화 이력을 최소화 (Prototype 생성 맥락이 방해)
   // 일반 모드에서는 최근 N개 대화 이력 포함
@@ -99,10 +101,6 @@ function buildMessages(
     if (htmlContent) {
       contextParts.push(`[현재 Prototype HTML]\n${htmlContent}`);
     }
-    if (runtimeErrors) {
-      contextParts.push(runtimeErrors);
-    }
-
     let userContent = currentMessage;
     if (contextParts.length > 0) {
       userContent = contextParts.join("\n\n") + `\n\n[요청]\n${currentMessage}`;
@@ -306,6 +304,7 @@ async function fetchChatStream(
   onToken?: (token: string) => void,
   existingHtml?: string,
 ): Promise<ChatResponse> {
+  // existingHtml을 그대로 사용 — AI에게 보낸 포맷과 동일하게 delta 매칭
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -354,6 +353,7 @@ async function fetchChatStream(
   }
 
   // delta 파싱 시도 (exact → fuzzy) → 실패 시 Morph 폴백
+  // existingHtml로 매칭 — buildMessages에서 AI에게 보낸 포맷과 일치
   const parsed = parseResponse(fullText, existingHtml);
   let { html } = parsed;
   const { spec, chatText, partialUpdate, deltaFailed } = parsed;
@@ -361,19 +361,29 @@ async function fetchChatStream(
 
   // Delta 실패 + full HTML도 없음 + existingHtml 존재 → 폴백 체인
   if (deltaFailed && !html && existingHtml) {
-    // 1차 폴백: Morph
+    const deltaCount = extractPrototypeDeltas(fullText)?.length ?? 0;
+
+    // 1차 폴백: Morph (원본 HTML 기반)
     const morphResult = await morphApply(existingHtml, fullText);
     if (morphResult) {
       html = morphResult;
       morphApplied = true;
+      recordDelta(deltaCount, "morph");
     } else {
       // 2차 폴백: Claude에게 전체 HTML 재출력 요청
       console.warn("[fetchChatStream] Morph 실패 → Claude 전체 HTML 재출력 요청");
       const fullHtml = await requestFullHtmlFallback(messages, fullText, existingHtml);
       if (fullHtml) {
         html = fullHtml;
+        recordDelta(deltaCount, "claude_fallback");
+      } else {
+        recordDelta(deltaCount, "none");
       }
     }
+  } else if (deltaFailed && html) {
+    // delta는 실패했지만 응답에 전체 HTML이 포함되어 있었음
+    const deltaCount = extractPrototypeDeltas(fullText)?.length ?? 0;
+    recordDelta(deltaCount, "full_html_in_response");
   }
 
   return { text: fullText, spec, html, chatText, partialUpdate: partialUpdate || morphApplied, morphApplied };
