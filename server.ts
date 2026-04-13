@@ -150,10 +150,14 @@ app.post("/api/chat/stream", async (req, res) => {
       res.end();
     });
 
-    stream.on("end", () => {
-      const u = stream.currentMessageSnapshot?.usage as any;
+    stream.on("end", async () => {
+      let u: any = stream.currentMessageSnapshot?.usage;
+      // currentMessageSnapshot에 없으면 finalMessage()에서 가져옴
+      if (!u?.input_tokens) {
+        try { u = (await stream.finalMessage()).usage; } catch { /* ignore */ }
+      }
       console.log("[api/chat/stream] Stream completed");
-      console.log(`[api/chat/stream] input: ${u?.input_tokens} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens}`);
+      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
       console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
       console.log(fullResponse.slice(0, 500));
       console.log("전체 길이:", fullResponse.length, "자");
