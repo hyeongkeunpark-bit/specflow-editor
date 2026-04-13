@@ -23,9 +23,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+export interface ChatAttachments {
+  images?: ResizedImage[];
+  textFiles?: { name: string; content: string }[];
+}
+
 interface ChatPanelProps {
   messages: ChatMessage[];
-  onSend: (message: string, images?: ResizedImage[]) => void;
+  onSend: (message: string, attachments?: ChatAttachments) => void;
   onCancel?: () => void;
   isLoading?: boolean;
   sessions: Session[];
@@ -58,8 +63,9 @@ const ChatPanel = ({
   const [isComposing, setIsComposing] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [pendingImages, setPendingImages] = useState<ResizedImage[]>([]);
-  const [pendingTextFile, setPendingTextFile] = useState<{ name: string; content: string } | null>(null);
-  const MAX_IMAGES = 5;
+  const [pendingTextFiles, setPendingTextFiles] = useState<{ name: string; content: string }[]>([]);
+  const MAX_ATTACHMENTS = 5;
+  const totalAttachments = pendingImages.length + pendingTextFiles.length;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -94,19 +100,20 @@ const ChatPanel = ({
   const handleSend = () => {
     if (isLoading) return;
     const trimmed = input.trim();
-    const hasAttachments = pendingImages.length > 0 || pendingTextFile;
+    const hasAttachments = pendingImages.length > 0 || pendingTextFiles.length > 0;
     if (!trimmed && !hasAttachments) return;
 
-    // 텍스트 파일 내용을 메시지에 포함
-    let messageText = trimmed;
-    if (pendingTextFile) {
-      messageText = `[첨부 파일: ${pendingTextFile.name}]\n${pendingTextFile.content}${trimmed ? `\n\n${trimmed}` : ""}`;
-    }
+    const attachments: ChatAttachments = {};
+    if (pendingImages.length > 0) attachments.images = [...pendingImages];
+    if (pendingTextFiles.length > 0) attachments.textFiles = [...pendingTextFiles];
 
-    onSend(messageText || "(이미지 첨부)", pendingImages.length > 0 ? pendingImages : undefined);
+    onSend(
+      trimmed || (hasAttachments ? "" : ""),
+      Object.keys(attachments).length > 0 ? attachments : undefined,
+    );
     setInput("");
     setPendingImages([]);
-    setPendingTextFile(null);
+    setPendingTextFiles([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -140,37 +147,46 @@ const ChatPanel = ({
     setTimeout(() => { e.target.value = ""; }, 0);
 
     const processFiles = async () => {
+      let addedCount = 0;
+
       for (const file of files) {
+        // 공통: 용량 체크 (모든 파일 유형)
+        const sizeError = validateFileSize(file);
+        if (sizeError) {
+          alert(`${file.name}: ${sizeError}`);
+          continue;
+        }
+
+        // 공통: 개수 체크 (현재 + 이번에 추가된 수)
+        if (totalAttachments + addedCount >= MAX_ATTACHMENTS) {
+          alert(`첨부파일은 최대 ${MAX_ATTACHMENTS}개까지 가능합니다.`);
+          break;
+        }
+
         if (isImageFile(file)) {
-          const sizeError = validateFileSize(file);
-          if (sizeError) {
-            alert(`${file.name}: ${sizeError}`);
-            continue;
-          }
           try {
             const resized = await resizeImage(file);
-            setPendingImages((prev) => {
-              if (prev.length >= MAX_IMAGES) {
-                alert(`이미지는 최대 ${MAX_IMAGES}장까지 첨부할 수 있습니다.`);
-                return prev;
-              }
-              return [...prev, resized];
-            });
+            setPendingImages((prev) => [...prev, resized]);
+            addedCount++;
           } catch (err) {
             alert(`${file.name}: 이미지 처리 실패`);
           }
         } else if (isPdfFile(file)) {
-          // PDF → 텍스트 추출 → 전송 대기
           try {
             const text = await extractPdfText(file);
-            if (text) setPendingTextFile({ name: file.name, content: text });
+            if (text) {
+              setPendingTextFiles((prev) => [...prev, { name: file.name, content: text }]);
+              addedCount++;
+            }
           } catch (err) {
             alert(`${file.name}: PDF 텍스트 추출 실패`);
           }
         } else {
-          // 텍스트/HTML 파일 → 전송 대기
           const text = await file.text();
-          if (text) setPendingTextFile({ name: file.name, content: text });
+          if (text) {
+            setPendingTextFiles((prev) => [...prev, { name: file.name, content: text }]);
+            addedCount++;
+          }
         }
       }
     };
@@ -302,10 +318,10 @@ const ChatPanel = ({
       {/* Input */}
       <div className="border-t p-3">
         {/* 첨부 파일 미리보기 */}
-        {(pendingImages.length > 0 || pendingTextFile) && (
+        {(pendingImages.length > 0 || pendingTextFiles.length > 0) && (
           <div className="mb-2 px-2 flex flex-wrap items-center gap-2">
             {pendingImages.map((img, idx) => (
-              <div key={idx} className="relative group">
+              <div key={`img-${idx}`} className="relative group">
                 <img
                   src={img.base64}
                   alt={`첨부 이미지 ${idx + 1}`}
@@ -319,17 +335,17 @@ const ChatPanel = ({
                 </button>
               </div>
             ))}
-            {pendingTextFile && (
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded text-xs">
-                <span className="text-muted-foreground">{pendingTextFile.name}</span>
+            {pendingTextFiles.map((file, idx) => (
+              <div key={`file-${idx}`} className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded text-xs">
+                <span className="text-muted-foreground">{file.name}</span>
                 <button
-                  onClick={() => setPendingTextFile(null)}
+                  onClick={() => setPendingTextFiles((prev) => prev.filter((_, i) => i !== idx))}
                   className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </div>
-            )}
+            ))}
           </div>
         )}
         <div className="flex items-end gap-2 bg-secondary rounded-lg p-2">

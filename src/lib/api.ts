@@ -1,7 +1,6 @@
 import { parseResponse, extractPrototypeDeltas } from "./parser";
 import { matchDummy } from "./dummyResponse";
 import { recordDelta } from "./deltaStats";
-// prettifyHtml 제거: minified → prettified 변환이 AI의 search 텍스트 형식 불일치를 악화시킴
 import type { ChatMessage } from "./types";
 
 export interface ChatResponse {
@@ -125,15 +124,15 @@ function buildMessages(
       userText = contextParts.join("\n\n") + `\n\n[요청]\n${currentMessage}`;
     }
 
-    // 이미지가 있으면 multimodal content block으로 구성
+    // 이미지가 있으면 multimodal content block으로 구성 (라벨 포함)
     if (images && images.length > 0) {
-      const contentBlocks: ContentBlock[] = [
-        ...images.map((img): ContentBlock => {
-          const base64Data = img.base64.includes(",") ? img.base64.split(",")[1] : img.base64;
-          return { type: "image", source: { type: "base64", media_type: img.mediaType || "image/jpeg", data: base64Data } };
-        }),
-        { type: "text", text: userText },
-      ];
+      const contentBlocks: ContentBlock[] = [];
+      images.forEach((img, idx) => {
+        const base64Data = img.base64.includes(",") ? img.base64.split(",")[1] : img.base64;
+        contentBlocks.push({ type: "text", text: `[첨부 이미지 ${idx + 1}]` });
+        contentBlocks.push({ type: "image", source: { type: "base64", media_type: img.mediaType || "image/jpeg", data: base64Data } });
+      });
+      contentBlocks.push({ type: "text", text: userText });
       messages.push({ role: "user", content: contentBlocks });
     } else {
       messages.push({ role: "user", content: userText });

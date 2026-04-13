@@ -14,7 +14,7 @@ import type { SendOptions } from "@/lib/api";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { formatErrorsForAI, tryClientPatch, type IframeError } from "@/lib/iframeErrors";
-import type { ResizedImage } from "@/lib/imageResize";
+import type { ChatAttachments } from "@/components/ChatPanel";
 import { FileText, Code2, History, Copy, Download, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 
@@ -92,11 +92,20 @@ const Index = () => {
   };
 
   // ── 일반 채팅 전송 ──
-  const handleSend = useCallback(async (text: string, images?: ResizedImage[]) => {
+  const handleSend = useCallback(async (text: string, attachments?: ChatAttachments) => {
+    // 채팅에 표시할 텍스트: 파일명 + 사용자 입력만 (파일 내용 X)
+    const displayParts: string[] = [];
+    if (attachments?.images?.length) displayParts.push(`[이미지 ${attachments.images.length}장 첨부]`);
+    if (attachments?.textFiles?.length) {
+      attachments.textFiles.forEach((f) => displayParts.push(`[${f.name}]`));
+    }
+    if (text) displayParts.push(text);
+    const displayText = displayParts.join(" ") || "(첨부파일)";
+
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: images?.length ? `[이미지 ${images.length}장 첨부] ${text}` : text,
+      content: displayText,
     };
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
@@ -111,19 +120,25 @@ const Index = () => {
     rawStreamRef.current = "";
 
     // Spec은 dirty일 때만, HTML은 존재하면 항상 전송
-    // (HTML을 안 보내면 AI가 현재 프로토타입을 모르고 새로 만들거나 라벨을 search에 씀)
     const sendSpec = specDirtyRef.current ? activeSession.specContent || undefined : undefined;
     const sendHtml = activeSession.htmlContent || undefined;
     if (sendSpec) specDirtyRef.current = false;
 
-    // 런타임 에러는 일반 채팅에 포함하지 않음 — 자동 수정 버튼으로만 처리
-    // (에러 컨텍스트가 AI를 혼란시켜 delta search 부정확 → 매칭 실패 원인)
+    // AI에 전송할 사용자 메시지: 파일 내용 + 사용자 텍스트
+    let apiUserMessage = text;
+    if (attachments?.textFiles?.length) {
+      const fileContents = attachments.textFiles
+        .map((f) => `[첨부 파일: ${f.name}]\n${f.content}`)
+        .join("\n\n");
+      const instruction = text || "위 문서를 첨부합니다. 이 문서를 어떻게 활용할지 알려주세요.";
+      apiUserMessage = `${fileContents}\n\n[요청]\n${instruction}`;
+    }
 
     const options: SendOptions = {
       specContent: sendSpec,
       htmlContent: sendHtml,
       existingHtml: activeSession.htmlContent || undefined,
-      images: images?.map((img) => ({ base64: img.base64, mediaType: img.mediaType })),
+      images: attachments?.images?.map((img) => ({ base64: img.base64, mediaType: img.mediaType })),
       signal: controller.signal,
       onToken: (token) => {
         rawStreamRef.current += token;
@@ -137,7 +152,7 @@ const Index = () => {
     };
 
     try {
-      const response = await sendMessage(text, activeSession.messages, options);
+      const response = await sendMessage(apiUserMessage, activeSession.messages, options);
 
       // 스트리밍 완료 후: chatText로 AI 메시지 정리
       const chatContent = response.chatText.trim();
