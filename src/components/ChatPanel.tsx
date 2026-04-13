@@ -75,6 +75,8 @@ const ChatPanel = ({
   };
 
   const scrollToBottom = () => {
+    isAtBottomRef.current = true;
+    setShowScrollBtn(false);
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -187,7 +189,7 @@ const ChatPanel = ({
         )}
         {messages.map((msg) =>
           msg.role === "system" ? (
-            <div key={msg.id} className="flex justify-center">
+            <div key={msg.id} id={`msg-${msg.id}`} className="flex justify-center">
               <span className="text-sm text-muted-foreground">{msg.content}</span>
             </div>
           ) : (

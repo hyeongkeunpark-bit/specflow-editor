@@ -447,19 +447,25 @@ const Index = () => {
 
   // 히스토리 → 채팅 스크롤: 스냅샷 timestamp와 가장 가까운 메시지로 스크롤
   const handleScrollToMessage = useCallback((timestamp: number) => {
-    // 메시지 ID는 Date.now() 기반이므로 timestamp에 가장 가까운 메시지를 찾음
+    // 스냅샷 timestamp 직전의 가장 가까운 user 메시지를 찾아 스크롤
     const msgs = activeSession.messages;
-    let closest: ChatMessage | null = null;
-    let minDiff = Infinity;
+    let target: ChatMessage | null = null;
     for (const m of msgs) {
-      const diff = Math.abs(Number(m.id) - timestamp);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = m;
+      const msgTime = Number(m.id);
+      if (msgTime <= timestamp && m.role === "user") {
+        target = m; // 스냅샷 이전의 마지막 user 메시지
       }
     }
-    if (closest && minDiff < 60_000) { // 1분 이내
-      const el = document.getElementById(`msg-${closest.id}`);
+    // user 메시지를 못 찾으면 스냅샷에 가장 가까운 아무 메시지
+    if (!target) {
+      let minDiff = Infinity;
+      for (const m of msgs) {
+        const diff = Math.abs(Number(m.id) - timestamp);
+        if (diff < minDiff) { minDiff = diff; target = m; }
+      }
+    }
+    if (target) {
+      const el = document.getElementById(`msg-${target.id}`);
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [activeSession.messages]);

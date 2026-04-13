@@ -71,7 +71,17 @@ const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: Hist
 
         {/* 변경 요청 내용 */}
         <div className="px-4 py-2 border-b border-border/50 bg-muted/20">
-          <p className="text-[11px] font-medium text-muted-foreground mb-1">변경 요청</p>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[11px] font-medium text-muted-foreground">변경 요청</p>
+            {onScrollToMessage && (
+              <button
+                onClick={() => onScrollToMessage(snap.timestamp)}
+                className="text-[11px] text-primary hover:underline"
+              >
+                채팅으로 이동 →
+              </button>
+            )}
+          </div>
           <p className="text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed">
             {snap.userMessage || snap.summary}
           </p>
@@ -198,17 +208,6 @@ const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: Hist
                         )}
                       </div>
                       <p className="text-xs text-foreground/80 leading-relaxed truncate">{snap.summary}</p>
-                      {onScrollToMessage && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onScrollToMessage(snap.timestamp);
-                          }}
-                          className="text-[10px] text-primary/60 hover:text-primary mt-0.5"
-                        >
-                          채팅으로 이동
-                        </button>
-                      )}
                     </div>
                     {!isCurrent && (
                       <button
