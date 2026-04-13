@@ -173,7 +173,7 @@ const PrototypePanel = ({
             <iframe
               src={blobUrl}
               className="w-full h-full rounded"
-              sandbox="allow-scripts allow-same-origin"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads allow-pointer-lock allow-orientation-lock allow-presentation"
               title="Prototype Preview"
             />
           </div>
