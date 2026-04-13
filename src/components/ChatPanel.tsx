@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Paperclip, Menu, Plus, Trash2, Square } from "lucide-react";
+import { Send, Paperclip, Menu, Plus, Trash2, Square, X } from "lucide-react";
 import type { ChatMessage, Session } from "@/lib/types";
+import { isImageFile, validateFileSize, resizeImage, type ResizedImage } from "@/lib/imageResize";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +24,7 @@ import {
 
 interface ChatPanelProps {
   messages: ChatMessage[];
-  onSend: (message: string) => void;
+  onSend: (message: string, images?: ResizedImage[]) => void;
   onCancel?: () => void;
   isLoading?: boolean;
   sessions: Session[];
@@ -55,6 +56,9 @@ const ChatPanel = ({
   const [input, setInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<ResizedImage[]>([]);
+  const [pendingTextFile, setPendingTextFile] = useState<{ name: string; content: string } | null>(null);
+  const MAX_IMAGES = 5;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -89,9 +93,19 @@ const ChatPanel = ({
   const handleSend = () => {
     if (isLoading) return;
     const trimmed = input.trim();
-    if (!trimmed) return;
-    onSend(trimmed);
+    const hasAttachments = pendingImages.length > 0 || pendingTextFile;
+    if (!trimmed && !hasAttachments) return;
+
+    // 텍스트 파일 내용을 메시지에 포함
+    let messageText = trimmed;
+    if (pendingTextFile) {
+      messageText = `[첨부 파일: ${pendingTextFile.name}]\n${pendingTextFile.content}${trimmed ? `\n\n${trimmed}` : ""}`;
+    }
+
+    onSend(messageText || "(이미지 첨부)", pendingImages.length > 0 ? pendingImages : undefined);
     setInput("");
+    setPendingImages([]);
+    setPendingTextFile(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -116,16 +130,38 @@ const ChatPanel = ({
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      if (text) onSend(text);
-    };
-    reader.readAsText(file);
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     e.target.value = "";
+
+    for (const file of Array.from(files)) {
+      if (isImageFile(file)) {
+        const sizeError = validateFileSize(file);
+        if (sizeError) {
+          alert(`${file.name}: ${sizeError}`);
+          continue;
+        }
+        if (pendingImages.length >= MAX_IMAGES) {
+          alert(`이미지는 최대 ${MAX_IMAGES}장까지 첨부할 수 있습니다.`);
+          break;
+        }
+        try {
+          const resized = await resizeImage(file);
+          setPendingImages((prev) => [...prev, resized].slice(0, MAX_IMAGES));
+        } catch (err) {
+          alert(`${file.name}: 이미지 처리 실패`);
+        }
+      } else {
+        // 텍스트/HTML 파일 → 전송 대기
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const text = ev.target?.result as string;
+          if (text) setPendingTextFile({ name: file.name, content: text });
+        };
+        reader.readAsText(file);
+      }
+    }
   };
 
   const formatDate = (ts: number) => {
@@ -252,11 +288,43 @@ const ChatPanel = ({
 
       {/* Input */}
       <div className="border-t p-3">
+        {/* 첨부 파일 미리보기 */}
+        {(pendingImages.length > 0 || pendingTextFile) && (
+          <div className="mb-2 px-2 flex flex-wrap items-center gap-2">
+            {pendingImages.map((img, idx) => (
+              <div key={idx} className="relative group">
+                <img
+                  src={img.base64}
+                  alt={`첨부 이미지 ${idx + 1}`}
+                  className="w-14 h-14 object-cover rounded border"
+                />
+                <button
+                  onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            ))}
+            {pendingTextFile && (
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded text-xs">
+                <span className="text-muted-foreground">{pendingTextFile.name}</span>
+                <button
+                  onClick={() => setPendingTextFile(null)}
+                  className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex items-end gap-2 bg-secondary rounded-lg p-2">
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.md"
+            accept=".txt,.md,.html,.png,.jpg,.jpeg,.gif,.webp"
+            multiple
             className="hidden"
             onChange={handleFileChange}
           />
@@ -264,7 +332,7 @@ const ChatPanel = ({
             onClick={handleFileAttach}
             disabled={isLoading}
             className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-30 shrink-0"
-            title="파일 첨부 (.txt, .md)"
+            title="파일 첨부 (이미지, .txt, .md, .html)"
           >
             <Paperclip className="w-4 h-4" />
           </button>

@@ -14,6 +14,7 @@ import type { SendOptions } from "@/lib/api";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { formatErrorsForAI, tryClientPatch, type IframeError } from "@/lib/iframeErrors";
+import type { ResizedImage } from "@/lib/imageResize";
 import { FileText, Code2, History, Copy, Download, Sun, Moon, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 
@@ -91,11 +92,11 @@ const Index = () => {
   };
 
   // ── 일반 채팅 전송 ──
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, images?: ResizedImage[]) => {
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: text,
+      content: images?.length ? `[이미지 ${images.length}장 첨부] ${text}` : text,
     };
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
@@ -122,6 +123,7 @@ const Index = () => {
       specContent: sendSpec,
       htmlContent: sendHtml,
       existingHtml: activeSession.htmlContent || undefined,
+      images: images?.map((img) => ({ base64: img.base64, mediaType: img.mediaType })),
       signal: controller.signal,
       onToken: (token) => {
         rawStreamRef.current += token;

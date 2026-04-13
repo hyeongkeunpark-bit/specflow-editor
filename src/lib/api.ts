@@ -18,8 +18,12 @@ export interface ChatResponse {
 
 interface ApiMessage {
   role: "user" | "assistant";
-  content: string;
+  content: string | ContentBlock[];
 }
+
+type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
 const MAX_HISTORY = 20;
 
@@ -39,6 +43,8 @@ export interface SendOptions {
   onToken?: (token: string) => void;
   /** 현재 Prototype HTML (partial update merge용 + str_replace tool용) */
   existingHtml?: string;
+  /** 첨부 이미지 배열 (최대 5장) — 현재 메시지에서만 사용, 저장 안 함 */
+  images?: { base64: string; mediaType: string }[];
   /** 취소 시그널 */
   signal?: AbortSignal;
 }
@@ -56,7 +62,7 @@ function buildMessages(
 ): ApiMessage[] {
   const messages: ApiMessage[] = [];
 
-  const { specContent, htmlContent, specUpdateMode } = options;
+  const { specContent, htmlContent, specUpdateMode, images } = options;
   // runtimeErrors는 일반 채팅에 포함하지 않음 — 에러 수정은 자동 수정 버튼(/api/chat/fix-errors)으로만 처리
   // 이유: 에러 컨텍스트가 포함되면 AI가 에러 수정 + 수정 요청을 동시 처리하다가 delta search 텍스트를 부정확하게 작성
 
@@ -114,11 +120,24 @@ function buildMessages(
     if (htmlContent) {
       contextParts.push(`[현재 Prototype HTML]\n${htmlContent}`);
     }
-    let userContent = currentMessage;
+    let userText = currentMessage;
     if (contextParts.length > 0) {
-      userContent = contextParts.join("\n\n") + `\n\n[요청]\n${currentMessage}`;
+      userText = contextParts.join("\n\n") + `\n\n[요청]\n${currentMessage}`;
     }
-    messages.push({ role: "user", content: userContent });
+
+    // 이미지가 있으면 multimodal content block으로 구성
+    if (images && images.length > 0) {
+      const contentBlocks: ContentBlock[] = [
+        ...images.map((img): ContentBlock => {
+          const base64Data = img.base64.includes(",") ? img.base64.split(",")[1] : img.base64;
+          return { type: "image", source: { type: "base64", media_type: img.mediaType || "image/jpeg", data: base64Data } };
+        }),
+        { type: "text", text: userText },
+      ];
+      messages.push({ role: "user", content: contentBlocks });
+    } else {
+      messages.push({ role: "user", content: userText });
+    }
   }
 
   return messages;

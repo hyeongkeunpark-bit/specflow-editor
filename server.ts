@@ -14,7 +14,7 @@ const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
 const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "5mb" }));
 
 // ── Claude API 클라이언트 ──
 const anthropic = new Anthropic({
@@ -61,7 +61,7 @@ function loadSystemPrompt(): string {
 // ── Ennoia API (레거시, 유지) ──
 
 app.post("/api/chat", async (req, res) => {
-  const { messages } = req.body as { messages: { role: string; content: string }[] };
+  const { messages } = req.body as { messages: { role: string; content: any }[] };
 
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: "messages is required" });
@@ -76,7 +76,8 @@ app.post("/api/chat", async (req, res) => {
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: messages.map((m, i) => {
         const role = m.role === "assistant" ? "assistant" as const : "user" as const;
-        if (i === messages.length - 2 && messages.length >= 2) {
+        // content가 이미 배열(multimodal)이면 그대로, string이면 캐싱 처리
+        if (i === messages.length - 2 && messages.length >= 2 && typeof m.content === "string") {
           return {
             role,
             content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const } }],
@@ -102,7 +103,7 @@ app.post("/api/chat", async (req, res) => {
 
 app.post("/api/chat/stream", async (req, res) => {
   const { messages } = req.body as {
-    messages: { role: string; content: string }[];
+    messages: { role: string; content: any }[];
   };
 
   if (!messages || messages.length === 0) {
@@ -128,7 +129,8 @@ app.post("/api/chat/stream", async (req, res) => {
         const role = m.role === "assistant" ? "assistant" as const : "user" as const;
         // 마지막에서 2번째 메시지에 cache breakpoint 설정
         // → 시스템 프롬프트 + 이전 대화 이력이 캐시됨, 새 메시지만 정가
-        if (i === messages.length - 2 && messages.length >= 2) {
+        // content가 이미 배열(multimodal)이면 그대로, string이면 캐싱 처리
+        if (i === messages.length - 2 && messages.length >= 2 && typeof m.content === "string") {
           return {
             role,
             content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const } }],
