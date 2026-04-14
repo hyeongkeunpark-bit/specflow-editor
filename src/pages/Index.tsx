@@ -365,7 +365,7 @@ const Index = () => {
 
   // ── Spec 일관성 검토 → 일반 채팅으로 요청 ──
   const handleConsistencyCheck = useCallback(() => {
-    handleSend("방금 Spec 문서를 직접 수정했어. Spec 내부에서 같은 정책, 수치, 규칙이 여러 섹션에 언급되는 경우, 불일치가 없는지 확인해줘. 불일치가 있으면 어디가 어떻게 다른지 알려주고, 수정해줘. Prototype은 수정하지 마.");
+    handleSend("방금 Spec 문서를 직접 수정했어. Spec 내부에서 같은 정책, 수치, 규칙이 여러 섹션에 언급되는 경우, 불일치가 없는지 확인해줘. 불일치가 있으면 어디가 어떻게 다른지 알려주고, '수정할까요?'라고 확인해줘. 바로 수정하지 마. Prototype도 수정하지 마.");
   }, [handleSend]);
 
   // ── [Prototype 업데이트] 플로팅 버튼 핸들러 (Spec → Prototype 동기화) ──
