@@ -80,12 +80,12 @@ function buildMessages(
     for (const m of relevant) {
       if (m.role === "user") {
         // 사용자 메시지에서 컨텍스트(HTML/Spec) 제거 → 요청 텍스트만 유지
-        // (현재 HTML/Spec은 매 요청에 새로 포함되므로 이력에서는 불필요)
         let userContent = m.content;
         const reqIdx = userContent.indexOf("[요청]\n");
         if (reqIdx >= 0) {
           userContent = userContent.slice(reqIdx + "[요청]\n".length);
         }
+        if (!userContent.trim()) continue; // 빈 메시지 스킵
         messages.push({ role: "user", content: userContent });
       } else {
         // AI 응답에서 <spec>, delta, HTML 블록 제거 → 채팅 텍스트만 유지
@@ -94,6 +94,7 @@ function buildMessages(
           .replace(/<prototype_delta>[\s\S]*?<\/prototype_delta>/g, "")
           .replace(/```html[\s\S]*?```/g, "")
           .trim();
+        if (!cleaned) continue; // 빈 메시지 스킵 (cache_control 에러 방지)
         messages.push({ role: "assistant", content: cleaned });
       }
     }
