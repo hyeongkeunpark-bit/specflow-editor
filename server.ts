@@ -103,8 +103,9 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages } = req.body as {
+  const { messages, systemPromptMode } = req.body as {
     messages: { role: string; content: any }[];
+    systemPromptMode?: "full" | "none";
   };
 
   if (!messages || messages.length === 0) {
@@ -117,14 +118,16 @@ app.post("/api/chat/stream", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  const systemPrompt = loadSystemPrompt();
+  const system = systemPromptMode === "none"
+    ? []
+    : [{ type: "text" as const, text: loadSystemPrompt(), cache_control: { type: "ephemeral" as const } }];
   let fullResponse = "";
 
   try {
     const stream = anthropic.messages.stream({
       model: MODEL,
       max_tokens: 16384,
-      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+      system,
       // 마지막 메시지 직전까지 캐싱 — 이전 대화 이력을 캐시하여 input 비용 절감
       messages: messages.map((m, i) => {
         const role = m.role === "assistant" ? "assistant" as const : "user" as const;

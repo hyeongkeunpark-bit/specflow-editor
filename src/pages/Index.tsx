@@ -99,7 +99,7 @@ const Index = () => {
   };
 
   // ── 일반 채팅 전송 ──
-  const handleSend = useCallback(async (text: string, attachments?: ChatAttachments) => {
+  const handleSend = useCallback(async (text: string, attachments?: ChatAttachments, extraOptions?: Partial<SendOptions>) => {
     // 채팅에 표시할 텍스트: 파일명 + 사용자 입력만 (파일 내용 X)
     const displayParts: string[] = [];
     if (attachments?.images?.length) displayParts.push(`[이미지 ${attachments.images.length}장 첨부]`);
@@ -156,6 +156,7 @@ const Index = () => {
       existingHtml: activeSession.htmlContent || undefined,
       images: attachments?.images?.map((img) => ({ base64: img.base64, mediaType: img.mediaType })),
       signal: controller.signal,
+      ...extraOptions,
       onToken: (token) => {
         rawStreamRef.current += token;
         const display = stripStreamingNoise(rawStreamRef.current);
@@ -354,7 +355,7 @@ const Index = () => {
 
   // ── [Use Case 분석] 버튼 → 일반 채팅으로 분석 요청 ──
   const handleEdgeCaseAnalysis = useCallback(() => {
-    handleSend("현재 Prototype과 Spec을 분석해서, 아직 대응되지 않은 Use Case와 Edge Case를 찾아줘. 이미 Prototype이나 Spec에서 처리하고 있는 항목은 제외하고, 누락된 항목만 우선순위(높음/중간/낮음) 기준으로 정리해줘. 해결방안은 지금 제안하지 말고, 누락 항목만 보여줘. Prototype을 수정하지 마. 마지막에 '위 항목 중 반영할 것을 알려주세요'라고 안내해줘.");
+    handleSend("현재 Prototype과 Spec을 분석해서, 아직 대응되지 않은 Use Case와 Edge Case를 찾아줘. 이미 Prototype이나 Spec에서 처리하고 있는 항목은 제외하고, 누락된 항목만 우선순위(높음/중간/낮음) 기준으로 정리해줘. 해결방안은 지금 제안하지 말고, 누락 항목만 보여줘. Prototype을 수정하지 마. 마지막에 '위 항목 중 반영할 것을 알려주세요'라고 안내해줘.", undefined, { systemPromptMode: "none" });
   }, [handleSend]);
 
   // ── Spec 직접 편집 콜백 ──
@@ -382,6 +383,7 @@ const Index = () => {
     const instruction = `[Spec 일관성 검토]\n\n[현재 Spec 전문]\n${activeSession.specContent}\n\nSpec 내부에서 같은 정책, 수치, 규칙이 여러 섹션에 언급되는 경우, 불일치가 없는지 확인해줘. 불일치가 있으면 어디가 어떻게 다른지 알려주고, "수정할까요?"라고 확인해줘. 바로 수정하지 마. <spec> 태그를 출력하지 마. 불일치가 없으면 "Spec 내부에 불일치가 없습니다."라고 안내해줘.`;
 
     const options: SendOptions = {
+      systemPromptMode: "none",
       onToken: (token) => {
         rawStreamRef.current += token;
         const display = stripStreamingNoise(rawStreamRef.current);
