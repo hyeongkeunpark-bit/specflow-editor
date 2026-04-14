@@ -352,9 +352,12 @@ async function requestFullHtmlFallback(
 
 // ── API 호출 ──
 
-function is504(err: unknown): boolean {
-  return err instanceof Error && err.message.includes("504");
+function isRetryable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return err.message.includes("504") || err.message.toLowerCase().includes("overloaded");
 }
+
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 
 /** SSE 스트리밍 fetch — messages 배열 전송, 토큰 단위로 수신 */
 async function fetchChatStream(
@@ -452,14 +455,24 @@ async function fetchChatStream(
   return { text: fullText, spec, html, chatText, partialUpdate: partialUpdate || morphApplied, morphApplied };
 }
 
-/** 단일 호출 — 스트리밍 우선, 504 시 1회 재시도 */
+/** 단일 호출 — 504/overloaded 시 2초 대기 후 1회 재시도 */
 async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string, signal?: AbortSignal, systemPromptMode?: "full" | "none"): Promise<ChatResponse> {
   try {
     return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode);
   } catch (err) {
-    if (!is504(err)) throw err;
+    if (!isRetryable(err)) throw err;
+    console.warn("[callChat] 재시도 (2초 대기):", err instanceof Error ? err.message : err);
+    await sleep(2000);
   }
-  return fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode);
+  try {
+    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode);
+  } catch (err) {
+    // 재시도도 실패 → 유저 친화적 메시지로 교체
+    if (err instanceof Error && err.message.toLowerCase().includes("overloaded")) {
+      throw new Error("서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해주세요.");
+    }
+    throw err;
+  }
 }
 
 // ── 공개 API ──
