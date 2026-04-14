@@ -112,8 +112,12 @@ function buildMessages(
     if (hasChangeLog) {
       parts.push(`[Prototype 변경 이력]\n${changeLogText}`);
       parts.push(`위 내용을 기반으로 Spec을 생성/업데이트해 주세요. 변경 이력에 있는 항목만 반영하고, 현재 Spec에 없는 기능을 추가하지 마세요. 시각적 변경만 있으면 Spec 변경 없이 안내만 해 주세요.`);
+    } else if (!specUpdateMode.specContent) {
+      // Spec이 아직 없으면 → Prototype 기반으로 신규 생성
+      parts.push(`현재 Prototype HTML을 분석하여 Spec을 생성해 주세요. Prototype에 구현된 기능과 UI를 기준으로 작성해 주세요.`);
     } else {
-      parts.push(`현재 Prototype HTML을 분석하여 Spec을 생성/업데이트해 주세요. Prototype에 구현된 기능과 UI를 기준으로 Spec에 반영해 주세요.`);
+      // Spec 있고 변경 이력 없음 → 현재 Spec과 Prototype 비교, 차이 없으면 수정하지 않음
+      parts.push(`현재 Spec과 Prototype을 비교해 주세요. Spec에 반영되지 않은 차이가 있으면 업데이트하고, 이미 일치하면 "현재 Spec이 Prototype과 일치합니다. 업데이트할 내용이 없습니다."라고 안내만 해 주세요. Spec을 불필요하게 다시 작성하지 마세요.`);
     }
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else {
