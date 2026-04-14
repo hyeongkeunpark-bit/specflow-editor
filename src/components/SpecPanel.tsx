@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import MDEditor from "@uiw/react-md-editor";
-import { Copy, Download, ZoomIn, ZoomOut, FileText, Pencil, Eye, RefreshCw, PanelRightClose } from "lucide-react";
+import { Copy, Download, ZoomIn, ZoomOut, FileText, Pencil, Eye, Save, RefreshCw, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 import { containsSpecSection } from "@/lib/parser";
 
@@ -49,18 +49,24 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToPrototype, isLoading, o
   const zoomIn = () => setZoom((z) => Math.min(z + 10, 200));
   const zoomOut = () => setZoom((z) => Math.max(z - 10, 50));
 
+  const isDirty = isEditing && editContent !== content;
+
   const handleToggleEdit = () => {
     if (isEditing) {
-      // 편집 모드 → 읽기 모드: 변경사항 저장
-      if (editContent !== content) {
-        onEdit?.(editContent);
-      }
+      // 편집 모드 → 읽기 모드 (변경 폐기)
+      setEditContent(content);
       setIsEditing(false);
     } else {
       // 읽기 모드 → 편집 모드
       setEditContent(content);
       setIsEditing(true);
     }
+  };
+
+  const handleSave = () => {
+    if (!isDirty) return;
+    onEdit?.(editContent);
+    setIsEditing(false);
   };
 
   return (
@@ -86,13 +92,23 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToPrototype, isLoading, o
                 onClick={handleToggleEdit}
                 className={`p-1.5 rounded transition-colors ${
                   isEditing
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 }`}
-                title={isEditing ? "편집 완료 (읽기 모드)" : "편집 모드"}
+                title={isEditing ? "편집 취소 (읽기 모드)" : "편집 모드"}
               >
                 {isEditing ? <Eye className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
               </button>
+              {isDirty && (
+                <button
+                  onClick={handleSave}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                  title="변경사항 저장"
+                >
+                  <Save className="w-3 h-3" />
+                  저장
+                </button>
+              )}
               <div className="w-px h-4 bg-border mx-1" />
             </>
           )}
