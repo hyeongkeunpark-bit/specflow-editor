@@ -448,6 +448,28 @@ export async function sendMessage(
 }
 
 /**
+ * Prototype 공유 URL 생성/업데이트 — R2에 HTML 업로드
+ * 같은 sessionId로 호출하면 같은 URL에 내용만 갱신됨
+ */
+export async function sharePrototype(
+  html: string,
+  sessionId: string,
+): Promise<{ url: string }> {
+  const res = await fetch("/api/share", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ html, sessionId }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `Share failed: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+/**
  * 에러 수정 전용 API — 대화 이력 없이 현재 HTML + 에러 분석만 전송.
  * 전용 시스템 프롬프트를 사용하여 최소 수정만 수행.
  */

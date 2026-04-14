@@ -173,6 +173,11 @@ export function useSessionManager() {
     [updateActiveSession]
   );
 
+  const setShareUrl = useCallback(
+    (url: string | undefined) => updateActiveSession((s) => ({ ...s, shareUrl: url })),
+    [updateActiveSession]
+  );
+
   const createNewSession = useCallback(() => {
     const newSession = createEmptySession();
     setSessions((prev) => [newSession, ...prev]);
@@ -212,6 +217,7 @@ export function useSessionManager() {
     setSpecContent,
     setHtmlContent,
     setSnapshots,
+    setShareUrl,
     createNewSession,
     switchSession,
     deleteSession,

@@ -20,4 +20,6 @@ export interface Session {
   specContent: string;
   htmlContent: string;
   snapshots: Snapshot[];
+  /** 공유 URL (R2에 업로드된 프로토타입) */
+  shareUrl?: string;
 }

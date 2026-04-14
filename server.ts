@@ -1,5 +1,6 @@
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
@@ -319,6 +320,59 @@ app.post("/api/morph/apply", async (req, res) => {
     const isTimeout = error.name === "AbortError" || error.message?.includes("aborted");
     console.error(`[api/morph] ${isTimeout ? "TIMEOUT" : "ERROR"} (${elapsedMs}ms):`, error.message);
     return res.status(isTimeout ? 504 : 500).json({ error: error.message });
+  }
+});
+
+// ── Prototype 공유 (Cloudflare R2) ──
+
+function getR2Client(): S3Client | null {
+  const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY } = process.env;
+  if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) return null;
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: R2_ACCESS_KEY_ID,
+      secretAccessKey: R2_SECRET_ACCESS_KEY,
+    },
+  });
+}
+
+app.post("/api/share", async (req, res) => {
+  const { html, sessionId } = req.body as { html: string; sessionId: string };
+
+  if (!html || !sessionId) {
+    return res.status(400).json({ error: "html and sessionId are required" });
+  }
+
+  const bucket = process.env.R2_BUCKET_NAME;
+  const publicUrl = process.env.R2_PUBLIC_URL; // e.g. https://{bucket}.r2.dev
+  const r2 = getR2Client();
+
+  if (!r2 || !bucket || !publicUrl) {
+    console.warn("[api/share] R2 not configured");
+    return res.status(501).json({ error: "R2 not configured. Set R2_* env vars." });
+  }
+
+  const key = `prototypes/${sessionId}.html`;
+
+  try {
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: html,
+        ContentType: "text/html; charset=utf-8",
+        CacheControl: "public, max-age=0, must-revalidate",
+      }),
+    );
+
+    const url = `${publicUrl.replace(/\/$/, "")}/${key}`;
+    console.log(`[api/share] Uploaded: ${key} (${html.length} chars) → ${url}`);
+    return res.json({ url });
+  } catch (error: any) {
+    console.error("[api/share] R2 upload error:", error.message);
+    return res.status(500).json({ error: error.message });
   }
 });
 

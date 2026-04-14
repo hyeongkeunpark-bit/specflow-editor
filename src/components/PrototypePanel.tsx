@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Monitor, Smartphone, Link, FileText, Wrench, RefreshCw } from "lucide-react";
+import { Monitor, Smartphone, Share2, Check, Loader2, FileText, Wrench, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { injectErrorCapture, isIframeErrorEvent, type IframeError } from "@/lib/iframeErrors";
+import { sharePrototype } from "@/lib/api";
 
 interface PrototypePanelProps {
   htmlContent: string;
@@ -11,6 +12,12 @@ interface PrototypePanelProps {
   hasProtoChanges?: boolean;
   /** 로딩 중 여부 */
   isLoading?: boolean;
+  /** 현재 세션 ID (공유 URL 키로 사용) */
+  sessionId?: string;
+  /** 기존 공유 URL (이미 공유된 경우) */
+  shareUrl?: string;
+  /** 공유 URL 변경 시 콜백 */
+  onShareUrlChange?: (url: string) => void;
   /** [Spec 문서 업데이트] 버튼 클릭 */
   onSpecUpdate?: () => void;
   /** [Prototype 생성] 버튼 클릭 (빈 상태 CTA) */
@@ -26,6 +33,9 @@ const PrototypePanel = ({
   hasSpecContent = false,
   hasProtoChanges = false,
   isLoading = false,
+  sessionId,
+  shareUrl,
+  onShareUrlChange,
   onSpecUpdate,
   onRequestPrototype,
   onErrors,
@@ -35,6 +45,8 @@ const PrototypePanel = ({
   const [runtimeErrors, setRuntimeErrors] = useState<IframeError[]>([]);
   const [blobUrl, setBlobUrl] = useState<string>("");
   const prevBlobRef = useRef<string>("");
+  const [isSharing, setIsSharing] = useState(false);
+  const [justCopied, setJustCopied] = useState(false);
 
   // htmlContent 변경 시 → blob URL 생성 + 에러 초기화
   useEffect(() => {
@@ -89,13 +101,32 @@ const PrototypePanel = ({
     return () => window.removeEventListener("message", handler);
   }, [onErrors]);
 
-  const handleGenerateUrl = () => {
-    const blob = new Blob([htmlContent], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    navigator.clipboard.writeText(url);
-    toast.success("미리보기 URL이 생성되어 클립보드에 복사되었습니다");
-    window.open(url, "_blank");
-  };
+  const handleShare = useCallback(async () => {
+    if (!htmlContent || !sessionId || isSharing) return;
+    setIsSharing(true);
+    try {
+      const { url } = await sharePrototype(htmlContent, sessionId);
+      onShareUrlChange?.(url);
+      await navigator.clipboard.writeText(url);
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 2000);
+      toast.success(
+        shareUrl ? "공유 URL이 업데이트되어 클립보드에 복사되었습니다" : "공유 URL이 생성되어 클립보드에 복사되었습니다",
+      );
+    } catch (err: any) {
+      toast.error(`공유 실패: ${err.message}`);
+    } finally {
+      setIsSharing(false);
+    }
+  }, [htmlContent, sessionId, isSharing, shareUrl, onShareUrlChange]);
+
+  const handleCopyShareUrl = useCallback(async () => {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setJustCopied(true);
+    setTimeout(() => setJustCopied(false), 2000);
+    toast.success("공유 URL이 클립보드에 복사되었습니다");
+  }, [shareUrl]);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -158,12 +189,27 @@ const PrototypePanel = ({
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
+              {shareUrl && (
+                <button
+                  onClick={handleCopyShareUrl}
+                  className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+                  title={`공유 URL 복사\n${shareUrl}`}
+                >
+                  {justCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Share2 className="w-3.5 h-3.5" />}
+                </button>
+              )}
               <button
-                onClick={handleGenerateUrl}
-                className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
-                title="URL 생성"
+                onClick={handleShare}
+                disabled={isSharing || isLoading}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={shareUrl ? "공유 URL 업데이트 (같은 URL에 최신 내용 반영)" : "공유 URL 생성"}
               >
-                <Link className="w-3.5 h-3.5" />
+                {isSharing ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Share2 className="w-3 h-3" />
+                )}
+                {shareUrl ? "업데이트" : "공유"}
               </button>
             </>
           )}

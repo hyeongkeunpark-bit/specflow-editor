@@ -29,6 +29,7 @@ const Index = () => {
     setSpecContent,
     setHtmlContent,
     setSnapshots,
+    setShareUrl,
     createNewSession,
     switchSession,
     deleteSession,
@@ -524,6 +525,9 @@ const Index = () => {
               hasSpecContent={!!activeSession.specContent}
               hasProtoChanges={hasProtoChanges}
               isLoading={isLoading}
+              sessionId={activeSessionId}
+              shareUrl={activeSession.shareUrl}
+              onShareUrlChange={setShareUrl}
               onSpecUpdate={handleSpecUpdate}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
               onErrors={handleIframeErrors}
