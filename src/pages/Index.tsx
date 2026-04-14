@@ -396,25 +396,19 @@ const Index = () => {
     };
 
     try {
-      const response = await sendMessage(parts.join("\n\n"), activeSession.messages, options);
+      await sendMessage(parts.join("\n\n"), activeSession.messages, options);
 
-      const chatContent = response.chatText.trim();
+      // 분석 전용: 스트리밍 원문을 그대로 채팅에 표시 (parseResponse의 spec/html 추출 무시)
+      // AI가 <spec> 태그를 출력해도 채팅에서 분석 결과가 사라지지 않도록
+      const fullText = rawStreamRef.current.trim();
+      // <spec>...</spec> 태그만 제거하여 채팅에 표시
+      const cleaned = fullText
+        .replace(/<spec>[\s\S]*?<\/spec>/g, "")
+        .replace(/<prototype_delta>[\s\S]*?<\/prototype_delta>/g, "")
+        .trim();
       setMessages((prev) =>
-        prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: cleaned || fullText } : m)),
       );
-
-      // 분석 전용이므로 html/spec 출력은 기대하지 않지만, 만약 있으면 기존 로직대로 처리
-      if (response.html) {
-        setHtmlContent(response.html);
-        htmlDirtyRef.current = true;
-      }
-      if (response.spec) {
-        const merged = activeSession.specContent
-          ? mergeSpec(activeSession.specContent, response.spec)
-          : response.spec;
-        setSpecContent(merged);
-        specDirtyRef.current = true;
-      }
     } catch (err) {
       const errContent = err instanceof Error
         ? `분석 오류: ${err.message}`
