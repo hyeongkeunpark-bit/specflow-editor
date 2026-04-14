@@ -191,7 +191,7 @@ const SpecPanel = ({ content, onEdit, onConsistencyCheck, needsSync, onSyncToSpe
             className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-            업데이트 확인
+            Spec에 반영하기
           </button>
         </div>
       )}
