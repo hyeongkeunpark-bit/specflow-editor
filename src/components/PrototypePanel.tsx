@@ -258,7 +258,7 @@ const PrototypePanel = ({
             className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-            Prototype 업데이트
+            업데이트 확인
           </button>
         </div>
       )}

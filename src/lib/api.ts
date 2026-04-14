@@ -116,14 +116,14 @@ function buildMessages(
     ];
 
     if (!specUpdateMode.specContent) {
-      // Spec이 아직 없으면 → changeLog 유무와 관계없이 Prototype 기반으로 신규 생성
-      parts.push(`현재 Prototype HTML을 분석하여 Spec을 생성해 주세요. Prototype에 구현된 기능과 UI를 기준으로 작성해 주세요.`);
+      // Spec이 아직 없으면 → 생성 확인
+      parts.push(`Prototype을 분석하여 Spec 문서를 생성할 수 있습니다. 어떤 내용이 Spec에 포함될지 간단히 요약하고, "Spec을 생성할까요?"라고 확인해 주세요. 아직 <spec> 태그를 출력하지 마세요.`);
     } else if (hasChangeLog) {
       parts.push(`[Prototype 변경 이력]\n${changeLogText}`);
-      parts.push(`위 내용을 기반으로 Spec을 업데이트해 주세요.\n\n**판단 기준:**\n- 새 데이터 필드 추가, 새 UI 요소 추가, 사용자 플로우 변경, 기능 추가/삭제 → Spec 업데이트 필요\n- 색상, 간격, 폰트 크기 등 순수 CSS 스타일만 변경 → Spec 업데이트 불필요\n\n업데이트가 필요하면 해당 섹션(UI 기획 상세, 시나리오, 구현 규칙, 데이터 요구사항 등)을 수정하세요. 불필요하면 안내만 해 주세요.`);
+      parts.push(`위 변경 이력을 분석하여 Spec에 반영이 필요한 항목을 정리해 주세요.\n\n**판단 기준:**\n- 새 데이터 필드 추가, 새 UI 요소 추가, 사용자 플로우 변경, 기능 추가/삭제 → 반영 필요\n- 색상, 간격, 폰트 크기 등 순수 CSS 스타일만 변경 → 반영 불필요\n\n반영할 항목이 있으면 어떤 섹션을 어떻게 수정할지 설명하고 "업데이트할까요?"라고 확인해 주세요. 반영할 항목이 없으면 불필요하다고 안내해 주세요. 아직 <spec> 태그를 출력하지 마세요.`);
     } else {
-      // Spec 있고 변경 이력 없음 → 현재 Spec과 Prototype 비교, 차이 없으면 수정하지 않음
-      parts.push(`현재 Spec과 Prototype을 비교해 주세요. Spec에 반영되지 않은 차이가 있으면 업데이트하고, 이미 일치하면 "현재 Spec이 Prototype과 일치합니다. 업데이트할 내용이 없습니다."라고 안내만 해 주세요. Spec을 불필요하게 다시 작성하지 마세요.`);
+      // Spec 있고 변경 이력 없음 → 비교 확인
+      parts.push(`현재 Spec과 Prototype을 비교하여 차이점을 정리해 주세요. 차이가 있으면 어떤 섹션을 어떻게 수정할지 설명하고 "업데이트할까요?"라고 확인해 주세요. 이미 일치하면 "업데이트할 내용이 없습니다."라고 안내해 주세요. 아직 <spec> 태그를 출력하지 마세요.`);
     }
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else if (protoUpdateMode) {
@@ -132,7 +132,7 @@ function buildMessages(
       `[Prototype 업데이트 요청]`,
       `[현재 Spec 전문]\n${protoUpdateMode.specContent}`,
       `[현재 Prototype HTML]\n${protoUpdateMode.htmlContent}`,
-      `현재 Spec과 Prototype을 비교하여, Spec에는 있지만 Prototype에 반영되지 않은 차이를 Prototype에 반영해 주세요.\n\n**비교 대상:** 제목, 텍스트, 라벨, UI 요소, 기능, 데이터 필드, 레이아웃 등 모든 차이를 포함합니다. 예를 들어 Spec의 제목이 바뀌었으면 Prototype의 제목도 바꿔야 합니다.\n\n이미 일치하면 "현재 Prototype이 Spec과 일치합니다. 업데이트할 내용이 없습니다."라고 안내만 해 주세요. 변경 시 <prototype_delta> 형식을 사용하세요.`,
+      `현재 Spec과 Prototype을 비교하여, 차이점을 정리해 주세요.\n\n**비교 대상:** 제목, 텍스트, 라벨, UI 요소, 기능, 데이터 필드, 레이아웃 등 모든 차이를 포함합니다.\n\n차이가 있으면 어떤 부분을 어떻게 수정할지 설명하고 "업데이트할까요?"라고 확인해 주세요. 이미 일치하면 "업데이트할 내용이 없습니다."라고 안내해 주세요. 아직 <prototype_delta>나 \`\`\`html을 출력하지 마세요.`,
     ];
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else {
