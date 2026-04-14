@@ -24,7 +24,7 @@ type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
-const MAX_HISTORY = 20;
+const MAX_HISTORY = 10;
 
 /** 전송 시 포함할 컨텍스트 옵션 */
 export interface SendOptions {

@@ -126,10 +126,11 @@ const Index = () => {
     setMessages((prev) => [...prev, { id: aiMsgId, role: "ai" as const, content: "" }]);
     rawStreamRef.current = "";
 
-    // Spec은 dirty일 때만, HTML은 존재하면 항상 전송
+    // Spec/HTML 모두 dirty일 때만 전송 — 변경 없으면 보내지 않아 토큰 절감
     const sendSpec = specDirtyRef.current ? activeSession.specContent || undefined : undefined;
-    const sendHtml = activeSession.htmlContent || undefined;
+    const sendHtml = htmlDirtyRef.current ? activeSession.htmlContent || undefined : undefined;
     if (sendSpec) specDirtyRef.current = false;
+    if (sendHtml) htmlDirtyRef.current = false;
 
     // AI에 전송할 사용자 메시지: 파일 내용 + 에러 컨텍스트 + 사용자 텍스트
     let apiUserMessage = text;
