@@ -39,6 +39,10 @@ const Index = () => {
   const [isDark, setIsDark] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // ── 양방향 동기화 플래그 ──
+  const [specNeedsSync, setSpecNeedsSync] = useState(false);   // Prototype 변경 → Spec 동기화 필요
+  const [protoNeedsSync, setProtoNeedsSync] = useState(false); // Spec 직접 수정 → Prototype 동기화 필요
+
   // ── 스트리밍 취소용 AbortController ──
   const abortRef = useRef<AbortController | null>(null);
   const handleCancel = useCallback(() => {
@@ -232,6 +236,8 @@ const Index = () => {
           ...prev,
           { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
         ]);
+        // Prototype 변경 → Spec 동기화 필요
+        if (activeSession.specContent) setSpecNeedsSync(true);
       }
     } catch (err) {
       // 취소된 경우 조용히 처리
@@ -325,6 +331,7 @@ const Index = () => {
         ]);
 
         toast.success("Spec 문서가 업데이트되었습니다");
+        setSpecNeedsSync(false);
       }
     } catch (err) {
       const errContent = err instanceof Error
@@ -420,6 +427,84 @@ const Index = () => {
     }
   }, [setMessages, setHtmlContent, setSpecContent, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
 
+  // ── Spec 직접 편집 콜백 ──
+  const handleSpecEdit = useCallback((newContent: string) => {
+    setSpecContent(newContent);
+    specDirtyRef.current = true;
+    if (activeSession.htmlContent) setProtoNeedsSync(true);
+  }, [setSpecContent, activeSession.htmlContent]);
+
+  // ── [Prototype 업데이트] 플로팅 버튼 핸들러 (Spec → Prototype 동기화) ──
+  const handleProtoFromSpec = useCallback(async () => {
+    if (!activeSession.specContent || !activeSession.htmlContent) return;
+    setIsLoading(true);
+
+    const now = Date.now();
+    const sysMsgId = `proto-sync-sys-${now}`;
+    const aiMsgId = `proto-sync-ai-${now}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: sysMsgId, role: "system" as const, content: "🔄 Spec 기반 Prototype 업데이트 요청 중..." },
+      { id: aiMsgId, role: "ai" as const, content: "" },
+    ]);
+    rawStreamRef.current = "";
+
+    const options: SendOptions = {
+      protoUpdateMode: {
+        specContent: activeSession.specContent,
+        htmlContent: activeSession.htmlContent,
+      },
+      existingHtml: activeSession.htmlContent,
+      onToken: (token) => {
+        rawStreamRef.current += token;
+        const display = stripStreamingNoise(rawStreamRef.current);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: display } : m)),
+        );
+      },
+    };
+
+    try {
+      const response = await sendMessage("", activeSession.messages, options);
+
+      const chatContent = response.chatText.trim();
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
+      );
+
+      if (response.html) {
+        setHtmlContent(response.html);
+        htmlDirtyRef.current = true;
+        protoChangeLogRef.current.push("Spec 기반 Prototype 업데이트");
+        setSnapshots((prev) => [
+          ...prev,
+          {
+            spec: activeSession.specContent,
+            html: response.html!,
+            timestamp: Date.now(),
+            summary: "Spec 기반 Prototype 업데이트",
+            userMessage: "Spec → Prototype 동기화",
+          },
+        ]);
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 2).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
+        ]);
+      }
+
+      setProtoNeedsSync(false);
+    } catch (err) {
+      const errContent = err instanceof Error
+        ? `Prototype 업데이트 오류: ${err.message}`
+        : "Prototype 업데이트 중 오류가 발생했습니다.";
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setMessages, setHtmlContent, setSnapshots, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
+
   const handleRestore = (index: number) => {
     const snap = activeSession.snapshots[index];
     setSpecContent(snap.spec);
@@ -469,11 +554,8 @@ const Index = () => {
     }
   }, [activeSession.messages]);
 
-  // Prototype이 존재하면 Spec 업데이트 버튼 항상 활성화
-  const hasProtoChanges = !!activeSession.htmlContent;
-
   const sidePanelContent = activePanel && (
-    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onClose={() => setActivePanel(null)} /> :
+    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} needsSync={protoNeedsSync} onSyncToPrototype={handleProtoFromSpec} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
     activePanel === "code" ? <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} /> :
     activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onScrollToMessage={handleScrollToMessage} onClose={() => setActivePanel(null)} /> :
     null
@@ -504,13 +586,13 @@ const Index = () => {
             <PrototypePanel
               htmlContent={activeSession.htmlContent}
               hasSpecContent={!!activeSession.specContent}
-              hasProtoChanges={hasProtoChanges}
               isLoading={isLoading}
               sessionId={activeSessionId}
               shareUrl={activeSession.shareUrl}
               onShareUrlChange={setShareUrl}
               onEdgeCaseAnalysis={handleEdgeCaseAnalysis}
-              onSpecUpdate={handleSpecUpdate}
+              needsSync={specNeedsSync}
+              onSyncToSpec={handleSpecUpdate}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
               onErrors={handleIframeErrors}
             />
@@ -534,6 +616,7 @@ const Index = () => {
           icon={<FileText className="w-[18px] h-[18px]" />}
           label="Spec"
           active={activePanel === "spec"}
+          badge={specNeedsSync && activePanel !== "spec"}
           onClick={() => togglePanel("spec")}
         />
         <SidebarButton
@@ -595,24 +678,29 @@ function SidebarButton({
   icon,
   label,
   active,
+  badge,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   active: boolean;
+  badge?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       title={label}
-      className={`w-9 h-9 flex items-center justify-center rounded-md transition-colors ${
+      className={`relative w-9 h-9 flex items-center justify-center rounded-md transition-colors ${
         active
           ? "bg-accent text-accent-foreground"
           : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
       }`}
     >
       {icon}
+      {badge && (
+        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500" />
+      )}
     </button>
   );
 }

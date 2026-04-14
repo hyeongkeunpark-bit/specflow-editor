@@ -8,8 +8,6 @@ interface PrototypePanelProps {
   htmlContent: string;
   /** Spec 문서가 존재하는지 (빈 상태 CTA 조건) */
   hasSpecContent?: boolean;
-  /** Prototype 변경 이력이 있는지 (Spec 업데이트 버튼 활성 조건) */
-  hasProtoChanges?: boolean;
   /** 로딩 중 여부 */
   isLoading?: boolean;
   /** 현재 세션 ID (공유 URL 키로 사용) */
@@ -20,8 +18,10 @@ interface PrototypePanelProps {
   onShareUrlChange?: (url: string) => void;
   /** [Use Case 분석] 버튼 클릭 */
   onEdgeCaseAnalysis?: () => void;
-  /** [Spec 문서 업데이트] 버튼 클릭 */
-  onSpecUpdate?: () => void;
+  /** Spec 동기화 필요 표시 (플로팅 버튼) */
+  needsSync?: boolean;
+  /** 플로팅 "Spec 업데이트" 버튼 클릭 */
+  onSyncToSpec?: () => void;
   /** [Prototype 생성] 버튼 클릭 (빈 상태 CTA) */
   onRequestPrototype?: () => void;
   /** iframe 런타임 에러 발생 시 콜백 */
@@ -31,13 +31,13 @@ interface PrototypePanelProps {
 const PrototypePanel = ({
   htmlContent,
   hasSpecContent = false,
-  hasProtoChanges = false,
   isLoading = false,
   sessionId,
   shareUrl,
   onShareUrlChange,
   onEdgeCaseAnalysis,
-  onSpecUpdate,
+  needsSync,
+  onSyncToSpec,
   onRequestPrototype,
   onErrors,
 }: PrototypePanelProps) => {
@@ -129,7 +129,7 @@ const PrototypePanel = ({
   }, [shareUrl]);
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-background relative">
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-panel-header">
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-muted-foreground">⚡</span>
@@ -214,20 +214,6 @@ const PrototypePanel = ({
               </button>
             </>
           )}
-          {htmlContent && onSpecUpdate && (
-            <>
-              <div className="w-px h-4 bg-border mx-1" />
-              <button
-                onClick={onSpecUpdate}
-                disabled={isLoading || !hasProtoChanges}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Prototype 변경사항을 Spec 문서에 반영"
-              >
-                <FileText className="w-3 h-3" />
-                Spec 문서 업데이트
-              </button>
-            </>
-          )}
         </div>
       </div>
 
@@ -262,6 +248,20 @@ const PrototypePanel = ({
           </div>
         )}
       </div>
+
+      {/* 플로팅 "Spec 업데이트" 버튼 */}
+      {needsSync && onSyncToSpec && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+          <button
+            onClick={onSyncToSpec}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            Spec 문서 업데이트
+          </button>
+        </div>
+      )}
     </div>
   );
 };

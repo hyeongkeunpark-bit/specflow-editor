@@ -38,6 +38,11 @@ export interface SendOptions {
     htmlContent: string;
     changeLog: string[];
   };
+  /** Prototype 업데이트 모드 — Spec 변경을 Prototype에 반영 */
+  protoUpdateMode?: {
+    specContent: string;
+    htmlContent: string;
+  };
   /** 스트리밍 토큰 콜백 */
   onToken?: (token: string) => void;
   /** 현재 Prototype HTML (partial update merge용 + str_replace tool용) */
@@ -61,13 +66,13 @@ function buildMessages(
 ): ApiMessage[] {
   const messages: ApiMessage[] = [];
 
-  const { specContent, htmlContent, specUpdateMode, images } = options;
+  const { specContent, htmlContent, specUpdateMode, protoUpdateMode, images } = options;
   // runtimeErrors는 일반 채팅에 포함하지 않음 — 에러 수정은 자동 수정 버튼(/api/chat/fix-errors)으로만 처리
   // 이유: 에러 컨텍스트가 포함되면 AI가 에러 수정 + 수정 요청을 동시 처리하다가 delta search 텍스트를 부정확하게 작성
 
-  // Spec 업데이트 모드에서는 대화 이력을 최소화 (Prototype 생성 맥락이 방해)
+  // Spec/Prototype 업데이트 모드에서는 대화 이력을 최소화
   // 일반 모드에서는 최근 N개 대화 이력 포함
-  if (!specUpdateMode) {
+  if (!specUpdateMode && !protoUpdateMode) {
     const relevant = history
       .filter((m) => m.role === "user" || m.role === "ai")
       .slice(-MAX_HISTORY);
@@ -119,6 +124,15 @@ function buildMessages(
       // Spec 있고 변경 이력 없음 → 현재 Spec과 Prototype 비교, 차이 없으면 수정하지 않음
       parts.push(`현재 Spec과 Prototype을 비교해 주세요. Spec에 반영되지 않은 차이가 있으면 업데이트하고, 이미 일치하면 "현재 Spec이 Prototype과 일치합니다. 업데이트할 내용이 없습니다."라고 안내만 해 주세요. Spec을 불필요하게 다시 작성하지 마세요.`);
     }
+    messages.push({ role: "user", content: parts.join("\n\n") });
+  } else if (protoUpdateMode) {
+    // [Prototype 업데이트] 모드: Spec 변경을 Prototype에 반영
+    const parts = [
+      `[Prototype 업데이트 요청]`,
+      `[현재 Spec 전문]\n${protoUpdateMode.specContent}`,
+      `[현재 Prototype HTML]\n${protoUpdateMode.htmlContent}`,
+      `현재 Spec과 Prototype을 비교하여, Spec에는 있지만 Prototype에 반영되지 않은 변경사항을 Prototype에 반영해 주세요. 이미 일치하면 "현재 Prototype이 Spec과 일치합니다. 업데이트할 내용이 없습니다."라고 안내만 해 주세요. 변경 시 <prototype_delta> 형식을 사용하세요.`,
+    ];
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else {
     // 일반 채팅 모드: dirty 상태인 컨텍스트만 포함
