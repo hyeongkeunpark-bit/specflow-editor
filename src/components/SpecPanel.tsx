@@ -10,6 +10,8 @@ interface SpecPanelProps {
   content: string;
   /** Spec 직접 편집 시 콜백 */
   onEdit?: (content: string) => void;
+  /** Spec 일관성 검토 요청 콜백 */
+  onConsistencyCheck?: () => void;
   /** Spec 동기화 필요 표시 (Prototype이 변경됨 → Spec 업데이트 필요) */
   needsSync?: boolean;
   /** 플로팅 "Spec 업데이트" 버튼 클릭 */
@@ -19,10 +21,11 @@ interface SpecPanelProps {
   onClose?: () => void;
 }
 
-const SpecPanel = ({ content, onEdit, needsSync, onSyncToSpec, isLoading, onClose }: SpecPanelProps) => {
+const SpecPanel = ({ content, onEdit, onConsistencyCheck, needsSync, onSyncToSpec, isLoading, onClose }: SpecPanelProps) => {
   const [zoom, setZoom] = useState(100);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
+  const [showConsistencyPopup, setShowConsistencyPopup] = useState(false);
 
   // content prop 변경 시 editContent 동기화 (AI가 Spec을 업데이트한 경우)
   useEffect(() => {
@@ -67,6 +70,10 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToSpec, isLoading, onClos
     if (!isDirty) return;
     onEdit?.(editContent);
     setIsEditing(false);
+    // 일관성 검토 팝업 표시 (콜백이 있을 때만)
+    if (onConsistencyCheck) {
+      setShowConsistencyPopup(true);
+    }
   };
 
   return (
@@ -186,6 +193,35 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToSpec, isLoading, onClos
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
             업데이트 확인
           </button>
+        </div>
+      )}
+
+      {/* 일관성 검토 팝업 */}
+      {showConsistencyPopup && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 rounded">
+          <div className="bg-background border rounded-lg shadow-xl p-5 mx-4 max-w-sm">
+            <p className="text-sm font-medium mb-1">Spec 내부 일관성 검토</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              수정한 내용과 관련된 다른 섹션에 불일치가 없는지 AI가 확인합니다.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowConsistencyPopup(false)}
+                className="px-3 py-1.5 rounded text-xs font-medium text-muted-foreground hover:bg-accent transition-colors"
+              >
+                검토하지 않기
+              </button>
+              <button
+                onClick={() => {
+                  setShowConsistencyPopup(false);
+                  onConsistencyCheck?.();
+                }}
+                className="px-3 py-1.5 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+              >
+                검토하기
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

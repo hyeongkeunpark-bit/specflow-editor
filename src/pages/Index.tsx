@@ -363,6 +363,11 @@ const Index = () => {
     if (activeSession.htmlContent) setProtoNeedsSync(true);
   }, [setSpecContent, activeSession.htmlContent]);
 
+  // ── Spec 일관성 검토 → 일반 채팅으로 요청 ──
+  const handleConsistencyCheck = useCallback(() => {
+    handleSend("방금 Spec 문서를 직접 수정했어. Spec 내부에서 같은 정책, 수치, 규칙이 여러 섹션에 언급되는 경우, 불일치가 없는지 확인해줘. 불일치가 있으면 어디가 어떻게 다른지 알려주고, 수정해줘. Prototype은 수정하지 마.");
+  }, [handleSend]);
+
   // ── [Prototype 업데이트] 플로팅 버튼 핸들러 (Spec → Prototype 동기화) ──
   const handleProtoFromSpec = useCallback(async () => {
     if (!activeSession.specContent || !activeSession.htmlContent) return;
@@ -487,7 +492,7 @@ const Index = () => {
   }, [activeSession.messages]);
 
   const sidePanelContent = activePanel && (
-    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
+    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} onConsistencyCheck={handleConsistencyCheck} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
     activePanel === "code" ? <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} /> :
     activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onScrollToMessage={handleScrollToMessage} onClose={() => setActivePanel(null)} /> :
     null
