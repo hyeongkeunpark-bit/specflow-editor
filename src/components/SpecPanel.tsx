@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import MDEditor from "@uiw/react-md-editor";
 import { Copy, Download, ZoomIn, ZoomOut, FileText, Pencil, Eye, RefreshCw, PanelRightClose } from "lucide-react";
 import { toast } from "sonner";
 import { containsSpecSection } from "@/lib/parser";
@@ -22,7 +23,6 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToPrototype, isLoading, o
   const [zoom, setZoom] = useState(100);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // content prop 변경 시 editContent 동기화 (AI가 Spec을 업데이트한 경우)
   useEffect(() => {
@@ -60,8 +60,6 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToPrototype, isLoading, o
       // 읽기 모드 → 편집 모드
       setEditContent(content);
       setIsEditing(true);
-      // textarea에 포커스
-      setTimeout(() => textareaRef.current?.focus(), 50);
     }
   };
 
@@ -131,16 +129,18 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToPrototype, isLoading, o
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4" data-color-mode="light">
         {isEditing ? (
-          <textarea
-            ref={textareaRef}
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            className="w-full h-full min-h-[500px] p-2 rounded border bg-muted/30 font-mono text-sm leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-            style={{ fontSize: `${zoom}%` }}
-            spellCheck={false}
-          />
+          <div style={{ fontSize: `${zoom}%` }}>
+            <MDEditor
+              value={editContent}
+              onChange={(val) => setEditContent(val || "")}
+              height="100%"
+              minHeight={500}
+              preview="live"
+              visibleDragbar={false}
+            />
+          </div>
         ) : content && containsSpecSection(content) ? (
           <div
             className="markdown-body"
