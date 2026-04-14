@@ -539,7 +539,7 @@ const Index = () => {
           icon={<FileText className="w-[18px] h-[18px]" />}
           label="Spec"
           active={activePanel === "spec"}
-          badge={specNeedsSync && activePanel !== "spec"}
+          badge={specNeedsSync}
           onClick={() => togglePanel("spec")}
         />
         <SidebarButton
