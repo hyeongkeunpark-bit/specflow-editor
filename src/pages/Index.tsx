@@ -236,8 +236,8 @@ const Index = () => {
           ...prev,
           { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
         ]);
-        // Prototype 변경 → Spec 동기화 필요
-        if (activeSession.specContent) setSpecNeedsSync(true);
+        // Prototype 변경 → Spec 동기화 필요 (Spec 유무와 무관 — 없으면 생성, 있으면 업데이트)
+        setSpecNeedsSync(true);
       }
     } catch (err) {
       // 취소된 경우 조용히 처리
