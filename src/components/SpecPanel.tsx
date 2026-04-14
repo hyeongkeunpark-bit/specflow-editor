@@ -99,10 +99,11 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToSpec, isLoading, onClos
               >
                 {isEditing ? <Eye className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
               </button>
-              {isDirty && (
+              {isEditing && (
                 <button
                   onClick={handleSave}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                  disabled={!isDirty}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
                   title="변경사항 저장"
                 >
                   <Save className="w-3 h-3" />
