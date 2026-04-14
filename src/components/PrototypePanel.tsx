@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Monitor, Smartphone, Share2, Check, Loader2, FileText, Wrench, RefreshCw } from "lucide-react";
+import { Monitor, Smartphone, Share2, Check, Loader2, FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { injectErrorCapture, isIframeErrorEvent, type IframeError } from "@/lib/iframeErrors";
 import { sharePrototype } from "@/lib/api";
@@ -24,8 +24,6 @@ interface PrototypePanelProps {
   onRequestPrototype?: () => void;
   /** iframe 런타임 에러 발생 시 콜백 */
   onErrors?: (errors: IframeError[]) => void;
-  /** "에러 자동 수정" 버튼 클릭 �� 콜백 */
-  onAutoFix?: () => void;
 }
 
 const PrototypePanel = ({
@@ -39,7 +37,6 @@ const PrototypePanel = ({
   onSpecUpdate,
   onRequestPrototype,
   onErrors,
-  onAutoFix,
 }: PrototypePanelProps) => {
   const [viewport, setViewport] = useState<"desktop" | "mobile">("desktop");
   const [runtimeErrors, setRuntimeErrors] = useState<IframeError[]>([]);
@@ -135,25 +132,12 @@ const PrototypePanel = ({
           <span className="text-xs font-mono text-muted-foreground">⚡</span>
           <h2 className="text-sm font-semibold text-panel-header-foreground">Prototype Preview</h2>
           {runtimeErrors.length > 0 && (
-            <>
-              <span
-                className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-destructive text-destructive-foreground cursor-help"
-                title={runtimeErrors.map(e => e.message).join("\n")}
-              >
-                {runtimeErrors.length} error{runtimeErrors.length > 1 ? "s" : ""}
-              </span>
-              {onAutoFix && (
-                <button
-                  onClick={onAutoFix}
-                  disabled={isLoading}
-                  className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="런타임 에러를 AI에게 자동 수정 요청"
-                >
-                  <Wrench className="w-2.5 h-2.5" />
-                  자동 수정
-                </button>
-              )}
-            </>
+            <span
+              className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-destructive text-destructive-foreground cursor-help"
+              title={runtimeErrors.map(e => e.message).join("\n")}
+            >
+              {runtimeErrors.length} error{runtimeErrors.length > 1 ? "s" : ""}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1">

@@ -9,7 +9,7 @@ import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
-import { sendMessage, fixErrors } from "@/lib/api";
+import { sendMessage } from "@/lib/api";
 import type { SendOptions } from "@/lib/api";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
@@ -56,26 +56,22 @@ const Index = () => {
 
   // ── iframe 런타임 에러 ──
   const iframeErrorsRef = useRef<IframeError[]>([]);
-  // Morph 적용 후 자동 에러 수정 플래그 (1회만 실행)
-  const autoFixPendingRef = useRef(false);
   const handleIframeErrors = useCallback((errors: IframeError[]) => {
     iframeErrorsRef.current = errors;
     if (errors.length > 0) {
       console.log("[iframeErrors]", errors.map(e => e.message));
-      // Morph 적용 직후 에러 → 자동 수정 트리거
-      if (autoFixPendingRef.current && !isLoading) {
-        autoFixPendingRef.current = false;
-        console.log("[autoFix] Morph 후 에러 감지 → 자동 수정 실행");
-        // setTimeout으로 현재 렌더 사이클 이후 실행
-        setTimeout(() => handleAutoFixRef.current(), 100);
+      // 클라이언트 패치 자동 시도 (AI 호출 없이, 백그라운드)
+      if (activeSession.htmlContent) {
+        const patch = tryClientPatch(activeSession.htmlContent, errors);
+        if (patch) {
+          console.log("[autoFix] 클라이언트 패치 성공:", patch.applied.join(", "));
+          setHtmlContent(patch.html);
+          htmlDirtyRef.current = true;
+          iframeErrorsRef.current = [];
+        }
       }
-    } else {
-      autoFixPendingRef.current = false;
     }
-  }, [isLoading]);
-
-  // handleAutoFix를 ref로 참조 (handleIframeErrors에서 순환 의존 방지)
-  const handleAutoFixRef = useRef<() => void>(() => {});
+  }, [activeSession.htmlContent, setHtmlContent]);
 
   // ── 스트리밍 raw 텍스트 (노이즈 제거용) ──
   const rawStreamRef = useRef("");
@@ -125,7 +121,7 @@ const Index = () => {
     const sendHtml = activeSession.htmlContent || undefined;
     if (sendSpec) specDirtyRef.current = false;
 
-    // AI에 전송할 사용자 메시지: 파일 내용 + 사용자 텍스트
+    // AI에 전송할 사용자 메시지: 파일 내용 + 에러 컨텍스트 + 사용자 텍스트
     let apiUserMessage = text;
     if (attachments?.textFiles?.length) {
       const fileContents = attachments.textFiles
@@ -133,6 +129,14 @@ const Index = () => {
         .join("\n\n");
       const instruction = text || "위 문서를 첨부합니다. 이 문서를 어떻게 활용할지 알려주세요.";
       apiUserMessage = `${fileContents}\n\n[요청]\n${instruction}`;
+    }
+
+    // 에러가 있으면 자동으로 에러 컨텍스트 첨부 (Bolt 방식)
+    if (iframeErrorsRef.current.length > 0 && activeSession.htmlContent) {
+      const errorContext = formatErrorsForAI(iframeErrorsRef.current, activeSession.htmlContent);
+      if (errorContext) {
+        apiUserMessage = `${apiUserMessage}\n\n${errorContext}`;
+      }
     }
 
     const options: SendOptions = {
@@ -212,10 +216,6 @@ const Index = () => {
       if (response.html) {
         setHtmlContent(response.html);
         htmlDirtyRef.current = true;
-        // Morph/Claude 폴백으로 적용된 경우 → iframe 에러 발생 시 자동 수정 예약
-        if (response.morphApplied) {
-          autoFixPendingRef.current = true;
-        }
         // Prototype 변경 이력에 추가
         protoChangeLogRef.current.push(text);
         setSnapshots((prev) => [
@@ -255,107 +255,6 @@ const Index = () => {
       setIsLoading(false);
     }
   }, [setMessages, setSpecContent, setHtmlContent, setSnapshots, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
-
-  /** "에러 자동 수정" 버튼 핸들러 — 클라이언트 패치 우선, 실패 시 AI 폴백 */
-  const handleAutoFix = useCallback(async () => {
-    if (iframeErrorsRef.current.length === 0 || !activeSession.htmlContent) return;
-    const errors = [...iframeErrorsRef.current];
-    iframeErrorsRef.current = [];
-
-    // ── Step 1: 클라이언트 직접 패치 시도 (AI 호출 없음) ──
-    const clientPatch = tryClientPatch(activeSession.htmlContent, errors);
-    if (clientPatch) {
-      const patchSummary = clientPatch.applied.join(", ");
-      console.log("[autoFix] 클라이언트 패치 성공:", patchSummary);
-      setHtmlContent(clientPatch.html);
-      htmlDirtyRef.current = true;
-      setSnapshots((prev) => [
-        ...prev,
-        {
-          spec: activeSession.specContent,
-          html: clientPatch.html,
-          timestamp: Date.now(),
-          summary: "에러 자동 수정 (클라이언트)",
-          userMessage: patchSummary,
-        },
-      ]);
-      setMessages((prev) => [
-        ...prev,
-        { id: Date.now().toString(), role: "system" as const, content: `🔧 에러 자동 수정됨: ${patchSummary}` },
-      ]);
-      return;
-    }
-
-    // ── Step 2: 클라이언트 패치 불가 → AI 전용 엔드포인트 폴백 ──
-    const errorText = formatErrorsForAI(errors, activeSession.htmlContent);
-    if (!errorText) return;
-
-    setIsLoading(true);
-
-    const sysMsgId = `autofix-${Date.now()}`;
-    const aiMsgId = `autofix-ai-${Date.now()}`;
-    setMessages((prev) => [
-      ...prev,
-      { id: sysMsgId, role: "system" as const, content: "🔧 에러 자동 수정 중 (AI)..." },
-      { id: aiMsgId, role: "ai" as const, content: "" },
-    ]);
-    rawStreamRef.current = "";
-
-    try {
-      const response = await fixErrors(
-        activeSession.htmlContent,
-        errorText,
-        (token) => {
-          rawStreamRef.current += token;
-          const display = stripStreamingNoise(rawStreamRef.current);
-          setMessages((prev) =>
-            prev.map((m) => (m.id === aiMsgId ? { ...m, content: display } : m)),
-          );
-        },
-      );
-
-      const chatContent = response.chatText.trim();
-      setMessages((prev) =>
-        prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
-      );
-
-      if (response.html) {
-        setHtmlContent(response.html);
-        htmlDirtyRef.current = true;
-        setSnapshots((prev) => [
-          ...prev,
-          {
-            spec: activeSession.specContent,
-            html: response.html!,
-            timestamp: Date.now(),
-            summary: "에러 자동 수정 (AI)",
-            userMessage: "런타임 에러 자동 수정",
-          },
-        ]);
-        setMessages((prev) => [
-          ...prev,
-          { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 에러 수정됨" },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { id: (Date.now() + 3).toString(), role: "system" as const, content: "⚠️ 자동 수정 실패 — delta 매칭 불가" },
-        ]);
-      }
-    } catch (err) {
-      const errContent = err instanceof Error
-        ? `에러 수정 실패: ${err.message}`
-        : "에러 수정 중 오류가 발생했습니다.";
-      setMessages((prev) =>
-        prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeSession.htmlContent, activeSession.specContent, setMessages, setHtmlContent, setSnapshots]);
-
-  // handleAutoFix ref 업데이트 (handleIframeErrors에서 참조)
-  handleAutoFixRef.current = handleAutoFix;
 
   // ── [Spec 문서 업데이트] 버튼 핸들러 ──
   const handleSpecUpdate = useCallback(async () => {
@@ -531,7 +430,6 @@ const Index = () => {
               onSpecUpdate={handleSpecUpdate}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
               onErrors={handleIframeErrors}
-              onAutoFix={handleAutoFix}
             />
           </ResizablePanel>
 
