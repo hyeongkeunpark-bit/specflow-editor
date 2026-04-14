@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Monitor, Smartphone, Share2, Check, Loader2, FileText, RefreshCw } from "lucide-react";
+import { Monitor, Smartphone, Share2, Check, Loader2, FileText, ListChecks, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { injectErrorCapture, isIframeErrorEvent, type IframeError } from "@/lib/iframeErrors";
 import { sharePrototype } from "@/lib/api";
@@ -18,6 +18,8 @@ interface PrototypePanelProps {
   shareUrl?: string;
   /** 공유 URL 변경 시 콜백 */
   onShareUrlChange?: (url: string) => void;
+  /** [Use Case 분석] 버튼 클릭 */
+  onEdgeCaseAnalysis?: () => void;
   /** [Spec 문서 업데이트] 버튼 클릭 */
   onSpecUpdate?: () => void;
   /** [Prototype 생성] 버튼 클릭 (빈 상태 CTA) */
@@ -34,6 +36,7 @@ const PrototypePanel = ({
   sessionId,
   shareUrl,
   onShareUrlChange,
+  onEdgeCaseAnalysis,
   onSpecUpdate,
   onRequestPrototype,
   onErrors,
@@ -194,6 +197,20 @@ const PrototypePanel = ({
                   <Share2 className="w-3 h-3" />
                 )}
                 {shareUrl ? "업데이트" : "공유"}
+              </button>
+            </>
+          )}
+          {htmlContent && onEdgeCaseAnalysis && (
+            <>
+              <div className="w-px h-4 bg-border mx-1" />
+              <button
+                onClick={onEdgeCaseAnalysis}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Prototype의 누락된 Use Case와 Edge Case를 분석합니다"
+              >
+                <ListChecks className="w-3 h-3" />
+                Use Case 분석
               </button>
             </>
           )}

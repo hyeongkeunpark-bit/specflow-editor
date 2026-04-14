@@ -338,6 +338,88 @@ const Index = () => {
     }
   }, [setMessages, setSpecContent, setSnapshots, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
 
+  // ── [Use Case 분석] 버튼 핸들러 ──
+  const handleEdgeCaseAnalysis = useCallback(async () => {
+    if (!activeSession.htmlContent) return;
+    setIsLoading(true);
+
+    const now = Date.now();
+    const sysMsgId = `edge-case-sys-${now}`;
+    const aiMsgId = `edge-case-ai-${now}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: sysMsgId, role: "system" as const, content: "🔍 Use Case / Edge Case 분석 요청 중..." },
+      { id: aiMsgId, role: "ai" as const, content: "" },
+    ]);
+    rawStreamRef.current = "";
+
+    // instruction에 HTML을 [분석 대상 Prototype] 마커로 포함 (Phase 5 트리거 회피)
+    const parts: string[] = [
+      `[Use Case / Edge Case 분석 요청]`,
+      `[분석 대상 Prototype]\n${activeSession.htmlContent}`,
+    ];
+    if (activeSession.specContent) {
+      parts.push(`[참고 Spec]\n${activeSession.specContent}`);
+    }
+    parts.push(
+      `현재 Prototype과 Spec을 분석하여 다음을 찾아주세요:\n\n` +
+      `1. **누락된 Use Case**: 사용자가 이 기능을 사용할 때 예상되는 주요 시나리오 중 현재 빠진 것\n` +
+      `2. **Edge Case**: 비정상적이거나 극단적인 상황에서 발생할 수 있는 문제\n` +
+      `   - 빈 입력, 특수문자, 매우 긴 텍스트\n` +
+      `   - 로딩 상태, 에러 상태, 타임아웃\n` +
+      `   - 빠른 연속 클릭, 동시 조작\n` +
+      `   - 데이터 없음(빈 상태), 대량 데이터\n` +
+      `3. **에러 처리**: 현재 에러 처리가 미흡한 부분\n\n` +
+      `**규칙:**\n` +
+      `- Prototype을 수정하지 마세요. <prototype_delta>나 \`\`\`html을 출력하지 마세요.\n` +
+      `- <spec> 태그를 출력하지 마세요.\n` +
+      `- 발견한 항목을 번호 리스트로 정리하고, 각 항목에 구체적인 수정 방법을 제안하세요.\n` +
+      `- 마지막에 "위 항목 중 반영할 것을 알려주세요" 라고 확인을 요청하세요.`,
+    );
+
+    // htmlContent/existingHtml을 options에 넘기지 않음 → Phase 5 수정 모드 회피 + delta 파싱 안 함
+    const options: SendOptions = {
+      onToken: (token) => {
+        rawStreamRef.current += token;
+        const display = stripStreamingNoise(rawStreamRef.current);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: display } : m)),
+        );
+      },
+    };
+
+    try {
+      const response = await sendMessage(parts.join("\n\n"), activeSession.messages, options);
+
+      const chatContent = response.chatText.trim();
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
+      );
+
+      // 분석 전용이므로 html/spec 출력은 기대하지 않지만, 만약 있으면 기존 로직대로 처리
+      if (response.html) {
+        setHtmlContent(response.html);
+        htmlDirtyRef.current = true;
+      }
+      if (response.spec) {
+        const merged = activeSession.specContent
+          ? mergeSpec(activeSession.specContent, response.spec)
+          : response.spec;
+        setSpecContent(merged);
+        specDirtyRef.current = true;
+      }
+    } catch (err) {
+      const errContent = err instanceof Error
+        ? `분석 오류: ${err.message}`
+        : "분석 중 오류가 발생했습니다.";
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setMessages, setHtmlContent, setSpecContent, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
+
   const handleRestore = (index: number) => {
     const snap = activeSession.snapshots[index];
     setSpecContent(snap.spec);
@@ -427,6 +509,7 @@ const Index = () => {
               sessionId={activeSessionId}
               shareUrl={activeSession.shareUrl}
               onShareUrlChange={setShareUrl}
+              onEdgeCaseAnalysis={handleEdgeCaseAnalysis}
               onSpecUpdate={handleSpecUpdate}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
               onErrors={handleIframeErrors}
