@@ -18,10 +18,10 @@ interface PrototypePanelProps {
   onShareUrlChange?: (url: string) => void;
   /** [Use Case 분석] 버튼 클릭 */
   onEdgeCaseAnalysis?: () => void;
-  /** Spec 동기화 필요 표시 (플로팅 버튼) */
+  /** Prototype 동기화 필요 표시 (Spec이 변경됨 → Prototype 업데이트 필요) */
   needsSync?: boolean;
-  /** 플로팅 "Spec 업데이트" 버튼 클릭 */
-  onSyncToSpec?: () => void;
+  /** 플로팅 "Prototype 업데이트" 버튼 클릭 */
+  onSyncToPrototype?: () => void;
   /** [Prototype 생성] 버튼 클릭 (빈 상태 CTA) */
   onRequestPrototype?: () => void;
   /** iframe 런타임 에러 발생 시 콜백 */
@@ -37,7 +37,7 @@ const PrototypePanel = ({
   onShareUrlChange,
   onEdgeCaseAnalysis,
   needsSync,
-  onSyncToSpec,
+  onSyncToPrototype,
   onRequestPrototype,
   onErrors,
 }: PrototypePanelProps) => {
@@ -249,16 +249,16 @@ const PrototypePanel = ({
         )}
       </div>
 
-      {/* 플로팅 "Spec 업데이트" 버튼 */}
-      {needsSync && onSyncToSpec && (
+      {/* 플로팅 "Prototype 업데이트" 버튼 — Spec이 변경되어 Prototype 동기화 필요 */}
+      {needsSync && onSyncToPrototype && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
           <button
-            onClick={onSyncToSpec}
+            onClick={onSyncToPrototype}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-            Spec 문서 업데이트
+            Prototype 업데이트
           </button>
         </div>
       )}

@@ -555,7 +555,7 @@ const Index = () => {
   }, [activeSession.messages]);
 
   const sidePanelContent = activePanel && (
-    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} needsSync={protoNeedsSync} onSyncToPrototype={handleProtoFromSpec} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
+    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
     activePanel === "code" ? <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} /> :
     activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onScrollToMessage={handleScrollToMessage} onClose={() => setActivePanel(null)} /> :
     null
@@ -591,8 +591,8 @@ const Index = () => {
               shareUrl={activeSession.shareUrl}
               onShareUrlChange={setShareUrl}
               onEdgeCaseAnalysis={handleEdgeCaseAnalysis}
-              needsSync={specNeedsSync}
-              onSyncToSpec={handleSpecUpdate}
+              needsSync={protoNeedsSync}
+              onSyncToPrototype={handleProtoFromSpec}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
               onErrors={handleIframeErrors}
             />

@@ -10,16 +10,16 @@ interface SpecPanelProps {
   content: string;
   /** Spec 직접 편집 시 콜백 */
   onEdit?: (content: string) => void;
-  /** Prototype 동기화 필요 표시 (플로팅 버튼) */
+  /** Spec 동기화 필요 표시 (Prototype이 변경됨 → Spec 업데이트 필요) */
   needsSync?: boolean;
-  /** 플로팅 "Prototype 업데이트" 버튼 클릭 */
-  onSyncToPrototype?: () => void;
+  /** 플로팅 "Spec 업데이트" 버튼 클릭 */
+  onSyncToSpec?: () => void;
   /** 로딩 중 여부 */
   isLoading?: boolean;
   onClose?: () => void;
 }
 
-const SpecPanel = ({ content, onEdit, needsSync, onSyncToPrototype, isLoading, onClose }: SpecPanelProps) => {
+const SpecPanel = ({ content, onEdit, needsSync, onSyncToSpec, isLoading, onClose }: SpecPanelProps) => {
   const [zoom, setZoom] = useState(100);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
@@ -174,16 +174,16 @@ const SpecPanel = ({ content, onEdit, needsSync, onSyncToPrototype, isLoading, o
         )}
       </div>
 
-      {/* 플로팅 "Prototype 업데이트" 버튼 */}
-      {needsSync && onSyncToPrototype && !isEditing && (
+      {/* 플로팅 "Spec 업데이트" 버튼 — Prototype이 변경되어 Spec 동기화 필요 */}
+      {needsSync && onSyncToSpec && !isEditing && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
           <button
-            onClick={onSyncToPrototype}
+            onClick={onSyncToSpec}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-            Prototype 업데이트
+            Spec 문서 업데이트
           </button>
         </div>
       )}
