@@ -115,12 +115,12 @@ function buildMessages(
       `[현재 Prototype HTML]\n${specUpdateMode.htmlContent}`,
     ];
 
-    if (hasChangeLog) {
+    if (!specUpdateMode.specContent) {
+      // Spec이 아직 없으면 → changeLog 유무와 관계없이 Prototype 기반으로 신규 생성
+      parts.push(`현재 Prototype HTML을 분석하여 Spec을 생성해 주세요. Prototype에 구현된 기능과 UI를 기준으로 작성해 주세요.`);
+    } else if (hasChangeLog) {
       parts.push(`[Prototype 변경 이력]\n${changeLogText}`);
       parts.push(`위 내용을 기반으로 Spec을 업데이트해 주세요.\n\n**판단 기준:**\n- 새 데이터 필드 추가, 새 UI 요소 추가, 사용자 플로우 변경, 기능 추가/삭제 → Spec 업데이트 필요\n- 색상, 간격, 폰트 크기 등 순수 CSS 스타일만 변경 → Spec 업데이트 불필요\n\n업데이트가 필요하면 해당 섹션(UI 기획 상세, 시나리오, 구현 규칙, 데이터 요구사항 등)을 수정하세요. 불필요하면 안내만 해 주세요.`);
-    } else if (!specUpdateMode.specContent) {
-      // Spec이 아직 없으면 → Prototype 기반으로 신규 생성
-      parts.push(`현재 Prototype HTML을 분석하여 Spec을 생성해 주세요. Prototype에 구현된 기능과 UI를 기준으로 작성해 주세요.`);
     } else {
       // Spec 있고 변경 이력 없음 → 현재 Spec과 Prototype 비교, 차이 없으면 수정하지 않음
       parts.push(`현재 Spec과 Prototype을 비교해 주세요. Spec에 반영되지 않은 차이가 있으면 업데이트하고, 이미 일치하면 "현재 Spec이 Prototype과 일치합니다. 업데이트할 내용이 없습니다."라고 안내만 해 주세요. Spec을 불필요하게 다시 작성하지 마세요.`);
