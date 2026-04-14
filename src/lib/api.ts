@@ -96,9 +96,10 @@ function buildMessages(
 
   if (specUpdateMode) {
     // [Spec 문서 업데이트] 버튼 모드: Spec + HTML + 변경이력
-    const changeLogText = specUpdateMode.changeLog.length > 0
+    const hasChangeLog = specUpdateMode.changeLog.length > 0;
+    const changeLogText = hasChangeLog
       ? specUpdateMode.changeLog.map((c, i) => `${i + 1}. ${c}`).join("\n")
-      : "(변경 이력 없음)";
+      : "";
 
     const parts = [
       `[Spec 문서 업데이트 요청]`,
@@ -106,9 +107,14 @@ function buildMessages(
         ? `[현재 Spec 전문]\n${specUpdateMode.specContent}`
         : `[현재 Spec 전문]\n(아직 생성되지 않음)`,
       `[현재 Prototype HTML]\n${specUpdateMode.htmlContent}`,
-      `[Prototype 변경 이력]\n${changeLogText}`,
-      `위 내용을 기반으로 Spec을 생성/업데이트해 주세요. 변경 이력에 있는 항목만 반영하고, 현재 Spec에 없는 기능을 추가하지 마세요. 시각적 변경만 있으면 Spec 변경 없이 안내만 해 주세요.`,
     ];
+
+    if (hasChangeLog) {
+      parts.push(`[Prototype 변경 이력]\n${changeLogText}`);
+      parts.push(`위 내용을 기반으로 Spec을 생성/업데이트해 주세요. 변경 이력에 있는 항목만 반영하고, 현재 Spec에 없는 기능을 추가하지 마세요. 시각적 변경만 있으면 Spec 변경 없이 안내만 해 주세요.`);
+    } else {
+      parts.push(`현재 Prototype HTML을 분석하여 Spec을 생성/업데이트해 주세요. Prototype에 구현된 기능과 UI를 기준으로 Spec에 반영해 주세요.`);
+    }
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else {
     // 일반 채팅 모드: dirty 상태인 컨텍스트만 포함

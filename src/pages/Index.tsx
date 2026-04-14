@@ -488,8 +488,8 @@ const Index = () => {
     }
   }, [activeSession.messages]);
 
-  // Prototype 변경 이력이 있으면 Spec 업데이트 버튼 활성화
-  const hasProtoChanges = protoChangeLogRef.current.length > 0;
+  // Prototype이 존재하면 Spec 업데이트 버튼 항상 활성화
+  const hasProtoChanges = !!activeSession.htmlContent;
 
   const sidePanelContent = activePanel && (
     activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onClose={() => setActivePanel(null)} /> :
