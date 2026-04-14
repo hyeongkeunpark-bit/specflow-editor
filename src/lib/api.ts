@@ -116,7 +116,7 @@ function buildMessages(
 
     if (hasChangeLog) {
       parts.push(`[Prototype 변경 이력]\n${changeLogText}`);
-      parts.push(`위 내용을 기반으로 Spec을 생성/업데이트해 주세요. 변경 이력에 있는 항목만 반영하고, 현재 Spec에 없는 기능을 추가하지 마세요. 시각적 변경만 있으면 Spec 변경 없이 안내만 해 주세요.`);
+      parts.push(`위 내용을 기반으로 Spec을 업데이트해 주세요.\n\n**판단 기준:**\n- 새 데이터 필드 추가, 새 UI 요소 추가, 사용자 플로우 변경, 기능 추가/삭제 → Spec 업데이트 필요\n- 색상, 간격, 폰트 크기 등 순수 CSS 스타일만 변경 → Spec 업데이트 불필요\n\n업데이트가 필요하면 해당 섹션(UI 기획 상세, 시나리오, 구현 규칙, 데이터 요구사항 등)을 수정하세요. 불필요하면 안내만 해 주세요.`);
     } else if (!specUpdateMode.specContent) {
       // Spec이 아직 없으면 → Prototype 기반으로 신규 생성
       parts.push(`현재 Prototype HTML을 분석하여 Spec을 생성해 주세요. Prototype에 구현된 기능과 UI를 기준으로 작성해 주세요.`);
