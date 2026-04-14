@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -9,7 +9,7 @@ import SpecPanel from "@/components/SpecPanel";
 import PrototypePanel from "@/components/PrototypePanel";
 import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
-import { sendMessage } from "@/lib/api";
+import { sendMessage, sharePrototype } from "@/lib/api";
 import type { SendOptions } from "@/lib/api";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
@@ -42,6 +42,12 @@ const Index = () => {
   // ── 양방향 동기화 플래그 ──
   const [specNeedsSync, setSpecNeedsSync] = useState(false);   // Prototype 변경 → Spec 동기화 필요
   const [protoNeedsSync, setProtoNeedsSync] = useState(false); // Spec 직접 수정 → Prototype 동기화 필요
+
+  // ── 공유 URL 자동 업데이트 — shareUrl이 있는 세션에서 Prototype 변경 시 자동 업로드 ──
+  useEffect(() => {
+    if (!activeSession.shareUrl || !activeSession.htmlContent) return;
+    sharePrototype(activeSession.htmlContent, activeSessionId).catch(() => {});
+  }, [activeSession.htmlContent, activeSession.shareUrl, activeSessionId]);
 
   // ── 스트리밍 취소용 AbortController ──
   const abortRef = useRef<AbortController | null>(null);
