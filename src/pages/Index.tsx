@@ -347,7 +347,7 @@ const Index = () => {
 
   // ── [Use Case 분석] 버튼 → 일반 채팅으로 분석 요청 ──
   const handleEdgeCaseAnalysis = useCallback(() => {
-    handleSend("현재 프로토타입의 Use Case와 Edge Case를 분석해줘. Prototype을 수정하지 말고, 분석 결과만 리스트로 정리해줘. 마지막에 '위 항목 중 반영할 것을 알려주세요 (예: 전부 반영해줘, 또는 1,5,8번 반영해줘)'라고 안내해줘.");
+    handleSend("현재 프로토타입의 Use Case와 Edge Case를 분석해줘. Prototype을 수정하지 말고, 전체 번호를 매겨서 하나의 리스트로 정리해줘. 마지막에 '위 항목 중 반영할 것을 알려주세요 (예: 전부 반영해줘, 또는 1,5,8번 반영해줘)'라고 안내해줘.");
   }, [handleSend]);
 
   // ── Spec 직접 편집 콜백 ──
