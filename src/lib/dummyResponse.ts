@@ -6,6 +6,9 @@ import type { ChatResponse } from "./api";
  * null을 반환하면 실제 API를 호출
  */
 export function matchDummy(userMessage: string): ChatResponse | null {
+  // 긴 메시지(컨텍스트 포함)는 더미 매칭 스킵 — Spec/HTML 전문이 포함되면 오매칭 위험
+  if (userMessage.length > 500) return null;
+
   const msg = userMessage.toLowerCase();
 
   // 분할 생성 트리거 테스트
