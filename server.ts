@@ -154,8 +154,8 @@ app.post("/api/chat/stream", async (req, res) => {
     });
 
     stream.on("end", async () => {
+      if (res.writableEnded) return; // error 핸들러에서 이미 종료된 경우
       let u: any = stream.currentMessageSnapshot?.usage;
-      // currentMessageSnapshot에 없으면 finalMessage()에서 가져옴
       if (!u?.input_tokens) {
         try { u = (await stream.finalMessage()).usage; } catch { /* ignore */ }
       }
