@@ -132,7 +132,7 @@ function buildMessages(
       `[Prototype 업데이트 요청]`,
       `[현재 Spec 전문]\n${protoUpdateMode.specContent}`,
       `[현재 Prototype HTML]\n${protoUpdateMode.htmlContent}`,
-      `현재 Spec과 Prototype을 비교하여, 차이점을 정리해 주세요.\n\n**비교 대상:** 제목, 텍스트, 라벨, UI 요소, 기능, 데이터 필드, 레이아웃 등 모든 차이를 포함합니다.\n\n차이가 있으면 어떤 부분을 어떻게 수정할지 설명하고 "업데이트할까요?"라고 확인해 주세요. 이미 일치하면 "업데이트할 내용이 없습니다."라고 안내해 주세요. 아직 <prototype_delta>나 \`\`\`html이나 <spec> 태그를 출력하지 마세요.`,
+      `Spec이 수정되었습니다. Spec을 기준으로 Prototype이 맞지 않는 부분을 찾아주세요.\n\n**방향: Spec이 기준, Prototype을 Spec에 맞춰야 합니다.** Spec에 명시된 정책, 수치, 규칙, 기능, 제목, 텍스트, UI 요소가 Prototype에 올바르게 반영되어 있는지 확인하세요.\n\nPrototype이 Spec과 다른 부분이 있으면, **Prototype에서 어떤 부분을 어떻게 수정할지** 설명하고 "업데이트할까요?"라고 확인해 주세요. 이미 일치하면 "업데이트할 내용이 없습니다."라고 안내해 주세요. 아직 <prototype_delta>나 \`\`\`html이나 <spec> 태그를 출력하지 마세요.`,
     ];
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else {
