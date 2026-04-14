@@ -434,6 +434,9 @@ const Index = () => {
     setHtmlContent(snap.html);
     if (snap.spec !== activeSession.specContent) specDirtyRef.current = true;
     if (snap.html !== activeSession.htmlContent) htmlDirtyRef.current = true;
+    // 복원 시 동기화 플래그 리셋 — 복원된 상태는 일치한 시점의 스냅샷
+    setSpecNeedsSync(false);
+    setProtoNeedsSync(false);
     // 비파괴적 되돌리기: 이전 스냅샷 유지 + "되돌림" 스냅샷 추가
     setSnapshots((prev) => [
       ...prev,
