@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import MDEditor from "@uiw/react-md-editor";
-import { Copy, Download, ZoomIn, ZoomOut, FileText, Pencil, Eye, Save, RefreshCw, PanelRightClose } from "lucide-react";
+import { Copy, Download, ZoomIn, ZoomOut, FileText, Pencil, Eye, Save, RefreshCw, PanelRightClose, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { containsSpecSection } from "@/lib/parser";
 
@@ -18,10 +18,12 @@ interface SpecPanelProps {
   onSyncToSpec?: () => void;
   /** 로딩 중 여부 */
   isLoading?: boolean;
+  /** Spec 파일 직접 로드 */
+  onLoadSpec?: (content: string) => void;
   onClose?: () => void;
 }
 
-const SpecPanel = ({ content, onEdit, onConsistencyCheck, needsSync, onSyncToSpec, isLoading, onClose }: SpecPanelProps) => {
+const SpecPanel = ({ content, onEdit, onConsistencyCheck, needsSync, onSyncToSpec, isLoading, onLoadSpec, onClose }: SpecPanelProps) => {
   const [zoom, setZoom] = useState(100);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
@@ -97,7 +99,8 @@ const SpecPanel = ({ content, onEdit, onConsistencyCheck, needsSync, onSyncToSpe
             <>
               <button
                 onClick={handleToggleEdit}
-                className={`p-1.5 rounded transition-colors ${
+                disabled={isLoading && !isEditing}
+                className={`p-1.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
                   isEditing
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -109,7 +112,7 @@ const SpecPanel = ({ content, onEdit, onConsistencyCheck, needsSync, onSyncToSpe
               {isEditing && (
                 <button
                   onClick={handleSave}
-                  disabled={!isDirty}
+                  disabled={!isDirty || isLoading}
                   className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
                   title="변경사항 저장"
                 >
@@ -178,6 +181,24 @@ const SpecPanel = ({ content, onEdit, onConsistencyCheck, needsSync, onSyncToSpe
             <p className="text-muted-foreground text-sm text-center">
               채팅에서 Spec이 생성되면<br />여기에 표시됩니다
             </p>
+            {onLoadSpec && (
+              <label className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">
+                <Upload className="w-3.5 h-3.5" />
+                Spec 불러오기
+                <input
+                  type="file"
+                  accept=".md,.txt"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 1 * 1024 * 1024) { toast.error("1MB 이하 파일만 가능합니다."); return; }
+                    file.text().then((text) => { onLoadSpec(text); });
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
           </div>
         )}
       </div>
@@ -216,7 +237,8 @@ const SpecPanel = ({ content, onEdit, onConsistencyCheck, needsSync, onSyncToSpe
                   setShowConsistencyPopup(false);
                   onConsistencyCheck?.();
                 }}
-                className="px-3 py-1.5 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                disabled={isLoading}
+                className="px-3 py-1.5 rounded text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 검토하기
               </button>

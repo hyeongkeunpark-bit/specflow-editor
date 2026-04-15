@@ -33,6 +33,7 @@ interface ChatPanelProps {
   onSend: (message: string, attachments?: ChatAttachments) => void;
   onCancel?: () => void;
   isLoading?: boolean;
+  storageLevel?: "normal" | "warning" | "full";
   sessions: Session[];
   activeSessionId: string;
   onNewSession: () => void;
@@ -53,6 +54,7 @@ const ChatPanel = ({
   onSend,
   onCancel,
   isLoading = false,
+  storageLevel = "normal",
   sessions,
   activeSessionId,
   onNewSession,
@@ -66,6 +68,7 @@ const ChatPanel = ({
   const [pendingTextFiles, setPendingTextFiles] = useState<{ name: string; content: string }[]>([]);
   const MAX_ATTACHMENTS = 5;
   const totalAttachments = pendingImages.length + pendingTextFiles.length;
+  const [loadingElapsed, setLoadingElapsed] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -96,6 +99,13 @@ const ChatPanel = ({
       scrollToBottom();
     }
   }, [messages]);
+
+  // 로딩 경과 시간 타이머
+  useEffect(() => {
+    if (!isLoading) { setLoadingElapsed(0); return; }
+    const t = setInterval(() => setLoadingElapsed((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [isLoading]);
 
   const handleSend = () => {
     if (isLoading) return;
@@ -213,6 +223,7 @@ const ChatPanel = ({
               {sessions.map((s) => (
                 <DropdownMenuItem
                   key={s.id}
+                  disabled={isLoading}
                   className={`flex items-center justify-between gap-2 ${s.id === activeSessionId ? "bg-accent" : ""}`}
                   onSelect={() => onSwitchSession(s.id)}
                 >
@@ -223,6 +234,7 @@ const ChatPanel = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isLoading) return;
                       setDeleteTargetId(s.id);
                     }}
                     className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive shrink-0"
@@ -232,7 +244,7 @@ const ChatPanel = ({
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={onNewSession}>
+              <DropdownMenuItem onSelect={onNewSession} disabled={isLoading}>
                 <Plus className="w-4 h-4 mr-2" />
                 새 세션
               </DropdownMenuItem>
@@ -283,13 +295,18 @@ const ChatPanel = ({
           <div className="flex justify-start">
             <div className="bg-chat-ai text-chat-ai-foreground max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm">
               <span className="inline-flex items-center gap-1">
-                응답을 생성하고 있습니다
+                {loadingElapsed >= 30
+                  ? "시간이 걸리고 있습니다. 조금만 기다려주세요"
+                  : "응답을 생성하고 있습니다"}
                 <span className="inline-flex">
                   <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
                   <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
                   <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
                 </span>
               </span>
+              {loadingElapsed >= 5 && (
+                <span className="block text-xs text-muted-foreground mt-1">{loadingElapsed}초 경과</span>
+              )}
             </div>
           </div>
         )}
@@ -310,8 +327,12 @@ const ChatPanel = ({
 
       {/* Footer notice */}
       <div className="px-3 pb-1">
-        <p className="text-[10px] text-muted-foreground text-center">
-          대화 내용은 이 브라우저에 저장됩니다.<br />브라우저 데이터를 삭제하면 채팅 내역이 사라집니다.
+        <p className={`text-[10px] text-center ${storageLevel === "full" ? "text-destructive font-medium" : storageLevel === "warning" ? "text-amber-500" : "text-muted-foreground"}`}>
+          {storageLevel === "full"
+            ? <>브라우저 용량을 전부 사용했습니다. 이후 내용은 저장되지 않습니다.<br />기존 대화를 삭제해 용량을 확보해 주세요.</>
+            : storageLevel === "warning"
+              ? <>브라우저 용량을 80% 이상 사용하였습니다.<br />용량을 100% 사용한 이후 내용은 저장되지 않습니다.<br />기존 대화를 삭제해 용량을 확보해 주세요.</>
+              : <>대화 내용은 브라우저에 저장됩니다.<br />브라우저 데이터를 삭제하면 채팅 내역이 사라집니다.</>}
         </p>
       </div>
 

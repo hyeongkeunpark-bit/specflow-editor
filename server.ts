@@ -13,7 +13,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
-const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
+const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
 
 app.use(express.json({ limit: "5mb" }));
 
@@ -74,6 +74,7 @@ app.post("/api/chat", async (req, res) => {
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 16384,
+      thinking: { type: "adaptive" },
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: messages.map((m, i) => {
         const role = m.role === "assistant" ? "assistant" as const : "user" as const;
@@ -88,8 +89,9 @@ app.post("/api/chat", async (req, res) => {
       }),
     });
 
-    const text =
-      response.content[0].type === "text" ? response.content[0].text : "";
+    // thinking 블록을 건너뛰고 text 블록만 추출
+    const textBlock = response.content.find((b) => b.type === "text");
+    const text = textBlock && "text" in textBlock ? textBlock.text : "";
 
     const u = response.usage as any;
     console.log(`[api/chat] Response: ${text.length} chars | input: ${u?.input_tokens} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens}`);
@@ -127,6 +129,7 @@ app.post("/api/chat/stream", async (req, res) => {
     const stream = anthropic.messages.stream({
       model: MODEL,
       max_tokens: 16384,
+      thinking: { type: "adaptive" },
       system,
       // 마지막 메시지 직전까지 캐싱 — 이전 대화 이력을 캐시하여 input 비용 절감
       messages: messages.map((m, i) => {
@@ -163,7 +166,8 @@ app.post("/api/chat/stream", async (req, res) => {
         try { u = (await stream.finalMessage()).usage; } catch { /* ignore */ }
       }
       console.log("[api/chat/stream] Stream completed");
-      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
+      const thinkingTokens = u?.thinking_tokens ?? u?.anthropic_thinking_tokens ?? 0;
+      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"} thinking: ${thinkingTokens}`);
       console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
       console.log(fullResponse.slice(0, 500));
       console.log("전체 길이:", fullResponse.length, "자");

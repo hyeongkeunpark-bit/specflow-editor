@@ -19,10 +19,11 @@ interface HistoryPanelProps {
   snapshots: Snapshot[];
   onRestore: (index: number) => void;
   onScrollToMessage?: (timestamp: number) => void;
+  isLoading?: boolean;
   onClose?: () => void;
 }
 
-const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: HistoryPanelProps) => {
+const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, isLoading, onClose }: HistoryPanelProps) => {
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
   const [viewingIndex, setViewingIndex] = useState<number | null>(null);
   const [detailTab, setDetailTab] = useState<"prototype" | "spec">("prototype");
@@ -61,7 +62,8 @@ const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: Hist
           {!isCurrent && (
             <button
               onClick={() => setConfirmIndex(viewingIndex)}
-              className="shrink-0 p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+              disabled={isLoading}
+              className="shrink-0 p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               title="이 버전으로 되돌리기"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -143,6 +145,7 @@ const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: Hist
 
         <RestoreDialog
           confirmIndex={confirmIndex}
+          isLoading={isLoading}
           onClose={() => setConfirmIndex(null)}
           onRestore={(idx) => {
             onRestore(idx);
@@ -213,9 +216,11 @@ const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: Hist
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isLoading) return;
                           setConfirmIndex(idx);
                         }}
-                        className="shrink-0 p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors opacity-0 group-hover:opacity-100"
+                        disabled={isLoading}
+                        className="shrink-0 p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-0"
                         title="이 버전으로 되돌리기"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -231,6 +236,7 @@ const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: Hist
 
       <RestoreDialog
         confirmIndex={confirmIndex}
+        isLoading={isLoading}
         onClose={() => setConfirmIndex(null)}
         onRestore={(idx) => {
           onRestore(idx);
@@ -243,10 +249,12 @@ const HistoryPanel = ({ snapshots, onRestore, onScrollToMessage, onClose }: Hist
 
 function RestoreDialog({
   confirmIndex,
+  isLoading,
   onClose,
   onRestore,
 }: {
   confirmIndex: number | null;
+  isLoading?: boolean;
   onClose: () => void;
   onRestore: (index: number) => void;
 }) {
@@ -263,7 +271,8 @@ function RestoreDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>취소</AlertDialogCancel>
           <AlertDialogAction
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={isLoading}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-30 disabled:cursor-not-allowed"
             onClick={() => {
               if (confirmIndex !== null) onRestore(confirmIndex);
             }}

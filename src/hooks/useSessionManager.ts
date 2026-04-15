@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Session, ChatMessage, Snapshot } from "@/lib/types";
-import { toast } from "sonner";
 
 const STORAGE_KEY = "specbot_sessions";
 const ACTIVE_KEY = "specbot_active_session";
@@ -92,41 +91,19 @@ export function useSessionManager() {
     snapshots: [] as Snapshot[],
   };
 
-  // 이전 저장소 레벨 추적 (동일 레벨 반복 알림 방지)
-  const prevLevelRef = useRef<StorageLevel>("normal");
+  const [storageLevel, setStorageLevel] = useState<StorageLevel>("normal");
 
   // Persist on change + 용량 체크
   useEffect(() => {
     const saved = saveSessions(sessions);
 
     if (!saved) {
-      toast.error(
-        "브라우저 용량을 전부 사용했습니다. 이후 내용은 저장되지 않습니다.\n기존 대화를 삭제해 용량을 확보해 주세요.",
-        { duration: Infinity, id: "storage-full" },
-      );
-      prevLevelRef.current = "full";
+      setStorageLevel("full");
       return;
     }
 
     const usage = getStorageUsage();
-    const level = getStorageLevel(usage);
-
-    if (level !== prevLevelRef.current) {
-      prevLevelRef.current = level;
-
-      if (level === "full") {
-        toast.error(
-          "브라우저 용량을 전부 사용했습니다. 이후 내용은 저장되지 않습니다.\n기존 대화를 삭제해 용량을 확보해 주세요.",
-          { duration: Infinity, id: "storage-full" },
-        );
-      } else if (level === "warning") {
-        toast.warning(
-          "브라우저 용량을 80% 이상 사용하였습니다.\n용량을 100% 사용한 이후 내용은 저장되지 않습니다.\n기존 대화를 삭제해 용량을 확보해 주세요.",
-          { duration: 10000, id: "storage-warning" },
-        );
-      }
-      // normal로 돌아오면 기존 toast 자동 해제 (id 기반)
-    }
+    setStorageLevel(getStorageLevel(usage));
   }, [sessions]);
 
   useEffect(() => {
@@ -213,6 +190,7 @@ export function useSessionManager() {
     sessions,
     activeSession,
     activeSessionId,
+    storageLevel,
     setMessages,
     setSpecContent,
     setHtmlContent,

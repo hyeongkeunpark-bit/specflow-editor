@@ -25,6 +25,8 @@ type ContentBlock =
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
 const MAX_HISTORY = 10;
+const HISTORY_MSG_MAX_LENGTH = 3000;
+const HISTORY_MSG_TRUNCATE_TO = 1500;
 
 /** 전송 시 포함할 컨텍스트 옵션 */
 export interface SendOptions {
@@ -88,15 +90,21 @@ function buildMessages(
           userContent = userContent.slice(reqIdx + "[요청]\n".length);
         }
         if (!userContent.trim()) continue; // 빈 메시지 스킵
+        if (userContent.length > HISTORY_MSG_MAX_LENGTH) {
+          userContent = userContent.slice(0, HISTORY_MSG_TRUNCATE_TO) + "\n...(이하 생략)";
+        }
         messages.push({ role: "user", content: userContent });
       } else {
         // AI 응답에서 <spec>, delta, HTML 블록 제거 → 채팅 텍스트만 유지
-        const cleaned = m.content
+        let cleaned = m.content
           .replace(/<spec>[\s\S]*?<\/spec>/g, "")
           .replace(/<prototype_delta>[\s\S]*?<\/prototype_delta>/g, "")
           .replace(/```html[\s\S]*?```/g, "")
           .trim();
         if (!cleaned) continue; // 빈 메시지 스킵 (cache_control 에러 방지)
+        if (cleaned.length > HISTORY_MSG_MAX_LENGTH) {
+          cleaned = cleaned.slice(0, HISTORY_MSG_TRUNCATE_TO) + "\n...(이하 생략)";
+        }
         messages.push({ role: "assistant", content: cleaned });
       }
     }

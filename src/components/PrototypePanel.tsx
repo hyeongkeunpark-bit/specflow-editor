@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Monitor, Smartphone, Share2, Check, Loader2, FileText, ListChecks, RefreshCw } from "lucide-react";
+import { Monitor, Smartphone, Share2, Check, Loader2, FileText, ListChecks, RefreshCw, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { injectErrorCapture, isIframeErrorEvent, type IframeError } from "@/lib/iframeErrors";
 import { sharePrototype } from "@/lib/api";
@@ -24,6 +24,8 @@ interface PrototypePanelProps {
   onSyncToPrototype?: () => void;
   /** [Prototype 생성] 버튼 클릭 (빈 상태 CTA) */
   onRequestPrototype?: () => void;
+  /** HTML 파일 직접 로드 */
+  onLoadHtml?: (html: string) => void;
   /** iframe 런타임 에러 발생 시 콜백 */
   onErrors?: (errors: IframeError[]) => void;
 }
@@ -39,6 +41,7 @@ const PrototypePanel = ({
   needsSync,
   onSyncToPrototype,
   onRequestPrototype,
+  onLoadHtml,
   onErrors,
 }: PrototypePanelProps) => {
   const [viewport, setViewport] = useState<"desktop" | "mobile">("desktop");
@@ -236,15 +239,35 @@ const PrototypePanel = ({
             <p className="text-muted-foreground text-sm text-center">
               Prototype이 생성되면<br />여기에서 미리 확인할 수 있습니다
             </p>
-            {hasSpecContent && onRequestPrototype && (
-              <button
-                onClick={onRequestPrototype}
-                disabled={isLoading}
-                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                Prototype 생성
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {hasSpecContent && onRequestPrototype && (
+                <button
+                  onClick={onRequestPrototype}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  Prototype 생성
+                </button>
+              )}
+              {onLoadHtml && (
+                <label className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  HTML 불러오기
+                  <input
+                    type="file"
+                    accept=".html,.htm"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 2 * 1024 * 1024) { toast.error("2MB 이하 파일만 가능합니다."); return; }
+                      file.text().then((text) => { onLoadHtml(text); });
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
           </div>
         )}
       </div>

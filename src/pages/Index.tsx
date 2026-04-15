@@ -25,6 +25,7 @@ const Index = () => {
     sessions,
     activeSession,
     activeSessionId,
+    storageLevel,
     setMessages,
     setSpecContent,
     setHtmlContent,
@@ -117,9 +118,12 @@ const Index = () => {
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
-    // 취소용 AbortController 생성
+    // 취소용 AbortController 생성 + 90초 타임아웃 자동 취소
     const controller = new AbortController();
     abortRef.current = controller;
+    const timeoutId = setTimeout(() => {
+      if (!controller.signal.aborted) controller.abort();
+    }, 120_000);
 
     // 스트리밍용 AI 메시지 placeholder
     const aiMsgId = (Date.now() + 1).toString();
@@ -252,7 +256,7 @@ const Index = () => {
       if (err instanceof DOMException && err.name === "AbortError") {
         const partial = rawStreamRef.current.trim();
         setMessages((prev) =>
-          prev.map((m) => (m.id === aiMsgId ? { ...m, content: partial || "(취소됨)" } : m)),
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: partial || "응답 시간이 초과되었습니다. 다시 시도해주세요." } : m)),
         );
       } else {
         const errContent = err instanceof Error
@@ -265,6 +269,7 @@ const Index = () => {
       // 전송 실패 시 dirty 복원
       if (sendSpec) specDirtyRef.current = true;
     } finally {
+      clearTimeout(timeoutId);
       abortRef.current = null;
       setIsLoading(false);
     }
@@ -550,9 +555,9 @@ const Index = () => {
   }, [activeSession.messages]);
 
   const sidePanelContent = activePanel && (
-    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} onConsistencyCheck={handleConsistencyCheck} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
+    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} onConsistencyCheck={handleConsistencyCheck} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onLoadSpec={(text) => { setSpecContent(text); specDirtyRef.current = true; }} onClose={() => setActivePanel(null)} /> :
     activePanel === "code" ? <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} /> :
-    activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onScrollToMessage={handleScrollToMessage} onClose={() => setActivePanel(null)} /> :
+    activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onScrollToMessage={handleScrollToMessage} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
     null
   );
 
@@ -567,6 +572,7 @@ const Index = () => {
               onSend={handleSend}
               onCancel={handleCancel}
               isLoading={isLoading}
+              storageLevel={storageLevel}
               sessions={sessions}
               activeSessionId={activeSessionId}
               onNewSession={createNewSession}
@@ -589,6 +595,7 @@ const Index = () => {
               needsSync={protoNeedsSync}
               onSyncToPrototype={handleProtoFromSpec}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
+              onLoadHtml={(html) => { setHtmlContent(html); htmlDirtyRef.current = true; }}
               onErrors={handleIframeErrors}
             />
           </ResizablePanel>
