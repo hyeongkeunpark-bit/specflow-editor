@@ -50,6 +50,12 @@ const Index = () => {
     sharePrototype(activeSession.htmlContent, activeSessionId).catch(() => {});
   }, [activeSession.htmlContent, activeSession.shareUrl, activeSessionId]);
 
+  // ── 세션 전환 시 dirty 플래그 재설정 ──
+  useEffect(() => {
+    specDirtyRef.current = !!activeSession.specContent;
+    htmlDirtyRef.current = !!activeSession.htmlContent;
+  }, [activeSessionId]);
+
   // ── 스트리밍 취소용 AbortController ──
   const abortRef = useRef<AbortController | null>(null);
   const handleCancel = useCallback(() => {
@@ -59,8 +65,9 @@ const Index = () => {
   }, []);
 
   // ── dirty 플래그: 변경 후 다음 전송 시 1회 포함 ──
-  const specDirtyRef = useRef(false);
-  const htmlDirtyRef = useRef(false);
+  // 기존 컨텐츠가 있으면 첫 메시지에 포함되도록 true로 초기화
+  const specDirtyRef = useRef(!!activeSession.specContent);
+  const htmlDirtyRef = useRef(!!activeSession.htmlContent);
 
   // ── Prototype 변경 이력 (Spec 업데이트 시 전달용) ──
   const protoChangeLogRef = useRef<string[]>([]);
