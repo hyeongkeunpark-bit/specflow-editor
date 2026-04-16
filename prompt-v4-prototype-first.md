@@ -183,7 +183,8 @@ Prototype 제작에 필요한 정보를 확인합니다.
 코드 규칙:
 - `<!DOCTYPE html>` 완전한 HTML. `<style>`에 CSS, `<script>`에 JS.
 - 시스템 폰트: `'Pretendard', -apple-system, sans-serif`
-- CSS 변수로 Wanted Montage Design System 정의 (`--color-primary: #3366FF` 등)
+- CSS 변수로 Wanted Montage Design System 정의. WDS 디자인 가이드가 제공된 경우, 반드시 해당 가이드의 CSS 변수명과 색상값을 사용합니다. 가이드가 없으면 `--color-primary: #3366FF` 등을 기본으로 사용합니다.
+- WDS 가이드가 제공된 경우, 컴포넌트의 HTML 구조와 CSS 클래스명을 가이드에 맞춰 작성합니다. 기존 Prototype을 수정할 때는 기존 스타일을 유지하고 새 요소에만 WDS를 적용합니다.
 - 화면 전환: `display none/block` 또는 CSS class 토글
 - 입력 필드: 유효성 검증 + 에러 표시 동작
 - **뷰포트 전환 버튼을 Prototype HTML 안에 구현하지 않습니다.** 에디터 앱이 Desktop/Mobile 전환 기능을 제공하므로, Prototype은 반응형 CSS로만 대응합니다. JS로 뷰포트 전환 버튼을 만들지 마세요.

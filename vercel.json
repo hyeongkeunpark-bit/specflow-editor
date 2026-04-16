@@ -5,7 +5,7 @@
   "functions": {
     "api/index.ts": {
       "maxDuration": 120,
-      "includeFiles": "../prompt-v4-prototype-first.md,../product-spec-v2-template.txt"
+      "includeFiles": "../prompt-v4-prototype-first.md,../product-spec-v2-template.txt,../wds-design-guide.md"
     }
   },
   "rewrites": [

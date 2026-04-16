@@ -36,7 +36,7 @@ function resolveFile(filename: string): string {
   return local; // 기본값
 }
 
-function loadSystemPrompt(): string {
+function loadSystemPrompt(wdsEnabled: boolean = false): string {
   const promptPath = resolveFile("prompt-v4-prototype-first.md");
   const knowledgePath = resolveFile("product-spec-v2-template.txt");
 
@@ -55,36 +55,41 @@ function loadSystemPrompt(): string {
     console.warn("[server] 지식 파일 로드 실패:", (err as Error).message);
   }
 
-  console.log(`[server] 시스템 프롬프트 로드 완료: ${prompt.length}자`);
+  if (wdsEnabled) {
+    try {
+      const wdsPath = resolveFile("wds-design-guide.md");
+      const wdsGuide = fs.readFileSync(wdsPath, "utf-8");
+      prompt += "\n\n---\n\n" + wdsGuide;
+      console.log(`[server] WDS 가이드 추가: ${wdsGuide.length}자`);
+    } catch (err) {
+      console.warn("[server] WDS 가이드 로드 실패:", (err as Error).message);
+    }
+  }
+
+  console.log(`[server] 시스템 프롬프트 로드 완료: ${prompt.length}자 (WDS: ${wdsEnabled ? "ON" : "OFF"})`);
   return prompt;
 }
 
 // ── Ennoia API (레거시, 유지) ──
 
 app.post("/api/chat", async (req, res) => {
-  const { messages } = req.body as { messages: { role: string; content: any }[] };
+  const { messages, wdsEnabled } = req.body as { messages: { role: string; content: any }[]; wdsEnabled?: boolean };
 
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: "messages is required" });
   }
 
-  const systemPrompt = loadSystemPrompt();
+  const systemPrompt = loadSystemPrompt(wdsEnabled ?? false);
 
   try {
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 16384,
-      thinking: { type: "adaptive" },
+      thinking: { type: "adaptive", display: "omitted" },
+      cache_control: { type: "ephemeral" },
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
-      messages: messages.map((m, i) => {
+      messages: messages.map((m) => {
         const role = m.role === "assistant" ? "assistant" as const : "user" as const;
-        // content가 이미 배열(multimodal)이면 그대로, string이면 캐싱 처리
-        if (i === messages.length - 2 && messages.length >= 2 && typeof m.content === "string") {
-          return {
-            role,
-            content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const } }],
-          };
-        }
         return { role, content: m.content };
       }),
     });
@@ -105,9 +110,10 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode } = req.body as {
+  const { messages, systemPromptMode, wdsEnabled } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
+    wdsEnabled?: boolean;
   };
 
   if (!messages || messages.length === 0) {
@@ -122,27 +128,18 @@ app.post("/api/chat/stream", async (req, res) => {
 
   const system = systemPromptMode === "none"
     ? []
-    : [{ type: "text" as const, text: loadSystemPrompt(), cache_control: { type: "ephemeral" as const } }];
+    : [{ type: "text" as const, text: loadSystemPrompt(wdsEnabled ?? false), cache_control: { type: "ephemeral" as const } }];
   let fullResponse = "";
 
   try {
     const stream = anthropic.messages.stream({
       model: MODEL,
       max_tokens: 16384,
-      thinking: { type: "adaptive" },
+      thinking: { type: "adaptive", display: "omitted" },
+      cache_control: { type: "ephemeral" },
       system,
-      // 마지막 메시지 직전까지 캐싱 — 이전 대화 이력을 캐시하여 input 비용 절감
-      messages: messages.map((m, i) => {
+      messages: messages.map((m) => {
         const role = m.role === "assistant" ? "assistant" as const : "user" as const;
-        // 마지막에서 2번째 메시지에 cache breakpoint 설정
-        // → 시스템 프롬프트 + 이전 대화 이력이 캐시됨, 새 메시지만 정가
-        // content가 이미 배열(multimodal)이면 그대로, string이면 캐싱 처리
-        if (i === messages.length - 2 && messages.length >= 2 && typeof m.content === "string") {
-          return {
-            role,
-            content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const } }],
-          };
-        }
         return { role, content: m.content };
       }),
     });

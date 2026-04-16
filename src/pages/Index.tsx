@@ -15,7 +15,8 @@ import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { formatErrorsForAI, tryClientPatch, type IframeError } from "@/lib/iframeErrors";
 import type { ChatAttachments } from "@/components/ChatPanel";
-import { FileText, Code2, History, Copy, Download, Sun, Moon, PanelRightClose } from "lucide-react";
+import { FileText, Code2, History, Copy, Download, Settings, PanelRightClose } from "lucide-react";
+import SettingsDialog from "@/components/SettingsDialog";
 import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | "history" | null;
@@ -37,8 +38,12 @@ const Index = () => {
   } = useSessionManager();
 
   const [activePanel, setActivePanel] = useState<SidePanel>("spec");
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem("specbot_theme");
+    return saved === "dark";
+  });
   const [isLoading, setIsLoading] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // ── 양방향 동기화 플래그 ──
   const [specNeedsSync, setSpecNeedsSync] = useState(false);   // Prototype 변경 → Spec 동기화 필요
@@ -94,10 +99,16 @@ const Index = () => {
   // ── 스트리밍 raw 텍스트 (노이즈 제거용) ──
   const rawStreamRef = useRef("");
 
+  // ── 다크모드 초기화 (localStorage 복원) ──
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+  }, []);
+
   const toggleTheme = () => {
     const next = !isDark;
     setIsDark(next);
     document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("specbot_theme", next ? "dark" : "light");
   };
 
   /** 유저 메시지 첫 줄을 변경 요약으로 사용 */
@@ -167,6 +178,7 @@ const Index = () => {
       existingHtml: activeSession.htmlContent || undefined,
       images: attachments?.images?.map((img) => ({ base64: img.base64, mediaType: img.mediaType })),
       signal: controller.signal,
+      wdsEnabled: localStorage.getItem("specbot_wds_mcp_enabled") !== "false",
       ...extraOptions,
       onToken: (token) => {
         rawStreamRef.current += token;
@@ -303,6 +315,7 @@ const Index = () => {
         htmlContent: activeSession.htmlContent,
         changeLog: [...protoChangeLogRef.current],
       },
+      wdsEnabled: localStorage.getItem("specbot_wds_mcp_enabled") !== "false",
       onToken: (token) => {
         rawStreamRef.current += token;
         const display = stripStreamingNoise(rawStreamRef.current);
@@ -459,6 +472,7 @@ const Index = () => {
         htmlContent: activeSession.htmlContent,
       },
       existingHtml: activeSession.htmlContent,
+      wdsEnabled: localStorage.getItem("specbot_wds_mcp_enabled") !== "false",
       onToken: (token) => {
         rawStreamRef.current += token;
         const display = stripStreamingNoise(rawStreamRef.current);
@@ -642,10 +656,16 @@ const Index = () => {
         />
         <div className="flex-1" />
         <SidebarButton
-          icon={isDark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
-          label={isDark ? "Light mode" : "Dark mode"}
+          icon={<Settings className="w-[18px] h-[18px]" />}
+          label="설정"
           active={false}
-          onClick={toggleTheme}
+          onClick={() => setSettingsOpen(true)}
+        />
+        <SettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          isDark={isDark}
+          onToggleTheme={toggleTheme}
         />
       </aside>
     </div>
