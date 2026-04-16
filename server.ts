@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { exec } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +71,40 @@ function loadSystemPrompt(wdsEnabled: boolean = false): string {
   console.log(`[server] 시스템 프롬프트 로드 완료: ${prompt.length}자 (WDS: ${wdsEnabled ? "ON" : "OFF"})`);
   return prompt;
 }
+
+// ── BigQuery 도구 ──
+
+const DANGEROUS_SQL = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i;
+
+function executeBqQuery(sql: string): Promise<string> {
+  if (DANGEROUS_SQL.test(sql)) {
+    return Promise.resolve("오류: SELECT 쿼리만 허용됩니다.");
+  }
+  return new Promise((resolve) => {
+    const escaped = sql.replace(/'/g, "'\\''");
+    const cmd = `export PATH=/opt/homebrew/share/google-cloud-sdk/bin:"$PATH" && bq query --format=json --use_legacy_sql=false --max_rows=50 '${escaped}'`;
+    exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
+      if (err) {
+        console.warn("[bq] 쿼리 실패:", stderr || err.message);
+        resolve(`쿼리 실패: ${(stderr || err.message).slice(0, 500)}`);
+      } else {
+        resolve(stdout.slice(0, 8000));
+      }
+    });
+  });
+}
+
+const BQ_TOOL: Anthropic.Tool = {
+  name: "query_db",
+  description: "원티드 서비스의 BigQuery 데이터베이스를 조회합니다. 테이블 스키마 확인, 컬럼 구조, 샘플 데이터 조회에 사용합니다. 프로젝트: wanted-data, 데이터셋: wanteddb. SELECT만 허용됩니다.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      sql: { type: "string", description: "실행할 SQL 쿼리 (SELECT만 허용). 예: SELECT column_name, data_type FROM `wanted-data.wanteddb.INFORMATION_SCHEMA.COLUMNS` WHERE table_name = 'apply'" }
+    },
+    required: ["sql"]
+  }
+};
 
 // ── Ennoia API (레거시, 유지) ──
 
@@ -147,46 +182,78 @@ app.post("/api/chat/stream", async (req, res) => {
     : { type: "adaptive" as const, display: "omitted" as const };
   let fullResponse = "";
 
+  const apiMessages: any[] = messages.map((m) => {
+    const role = m.role === "assistant" ? "assistant" as const : "user" as const;
+    return { role, content: m.content };
+  });
+
+  const MAX_TOOL_ROUNDS = 3;
+
   try {
-    const stream = anthropic.messages.stream({
-      model: useModel,
-      max_tokens: 16384,
-      ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
-      cache_control: { type: "ephemeral" },
-      system,
-      messages: messages.map((m) => {
-        const role = m.role === "assistant" ? "assistant" as const : "user" as const;
-        return { role, content: m.content };
-      }),
-    });
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      const stream = anthropic.messages.stream({
+        model: useModel,
+        max_tokens: 16384,
+        ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
+        cache_control: { type: "ephemeral" },
+        system,
+        messages: apiMessages,
+        tools: [BQ_TOOL],
+      });
 
-    stream.on("text", (text) => {
-      fullResponse += text;
-      res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-    });
+      // 텍스트 토큰은 기존과 동일하게 SSE 전송
+      stream.on("text", (text) => {
+        fullResponse += text;
+        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+      });
 
-    stream.on("error", (error) => {
-      console.error("[api/chat/stream] Stream error:", error.message);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      res.end();
-    });
-
-    stream.on("end", async () => {
-      if (res.writableEnded) return; // error 핸들러에서 이미 종료된 경우
-      let u: any = stream.currentMessageSnapshot?.usage;
-      if (!u?.input_tokens) {
-        try { u = (await stream.finalMessage()).usage; } catch { /* ignore */ }
+      let finalMessage: Anthropic.Message;
+      try {
+        finalMessage = await stream.finalMessage();
+      } catch (error: any) {
+        console.error("[api/chat/stream] Stream error:", error.message);
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
       }
-      console.log(`[api/chat/stream] Stream completed (model: ${useModel}, thinking: ${thinkingConfig ? "adaptive" : "off"})`);
-      const thinkingTokens = u?.thinking_tokens ?? u?.anthropic_thinking_tokens ?? 0;
-      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"} thinking: ${thinkingTokens}`);
-      console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
-      console.log(fullResponse.slice(0, 500));
-      console.log("전체 길이:", fullResponse.length, "자");
-      res.write("data: [DONE]\n\n");
-      res.end();
-    });
+
+      // tool_use가 없으면 종료 (기존과 동일한 흐름)
+      const toolUseBlocks = finalMessage.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+      if (toolUseBlocks.length === 0 || finalMessage.stop_reason !== "tool_use") {
+        const u = finalMessage.usage as any;
+        const thinkingTokens = u?.thinking_tokens ?? u?.anthropic_thinking_tokens ?? 0;
+        console.log(`[api/chat/stream] Stream completed (model: ${useModel}, thinking: ${thinkingConfig ? "adaptive" : "off"}, tool_rounds: ${round})`);
+        console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"} thinking: ${thinkingTokens}`);
+        console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
+        console.log(fullResponse.slice(0, 500));
+        console.log("전체 길이:", fullResponse.length, "자");
+        break;
+      }
+
+      // tool_use 처리: bq 실행
+      console.log(`[api/chat/stream] Tool use round ${round + 1}: ${toolUseBlocks.map(b => b.name).join(", ")}`);
+      res.write(`data: ${JSON.stringify({ content: "\n\n_(DB 조회 중...)_\n\n" })}\n\n`);
+
+      apiMessages.push({ role: "assistant" as const, content: finalMessage.content });
+
+      const toolResults: any[] = [];
+      for (const block of toolUseBlocks) {
+        const sql = (block.input as any).sql || "";
+        console.log(`[bq] 쿼리: ${sql.slice(0, 200)}`);
+        const result = await executeBqQuery(sql);
+        console.log(`[bq] 결과: ${result.length}자`);
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: result,
+        });
+      }
+      apiMessages.push({ role: "user" as const, content: toolResults });
+    }
+
+    res.write("data: [DONE]\n\n");
+    res.end();
   } catch (error: any) {
     console.error("[api/chat/stream] Error:", error.message);
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
