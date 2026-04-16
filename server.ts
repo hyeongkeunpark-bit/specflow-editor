@@ -25,37 +25,38 @@ const anthropic = new Anthropic({
 });
 
 // ── 시스템 프롬프트 + 지식 파일 로드 ──
-function resolveFile(filename: string): string {
-  const candidates = [
-    path.resolve(__dirname, filename),           // 같은 디렉토리 (로컬)
-    path.resolve(__dirname, "..", filename),      // 상위 디렉토리
-    path.resolve(process.cwd(), filename),        // cwd
-    path.join("/var/task", filename),              // Vercel 서버리스 기본 경로
-    path.join("/var/task/api", filename),          // Vercel api/ 하위
-  ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
-  }
-  console.error(`[server] 파일을 찾을 수 없음: ${filename}`);
-  console.error(`[server] 탐색 경로:`, candidates);
-  return candidates[0];
+// 리터럴 경로로 읽어야 @vercel/nft가 파일을 번들에 포함함
+function readFileWithLiteralPath(filename: string): string {
+  // nft가 추적 가능한 리터럴 매핑
+  const fileMap: Record<string, string> = {
+    "prompt-v4-prototype-first.md": path.join(__dirname, "prompt-v4-prototype-first.md"),
+    "product-spec-v2-template.txt": path.join(__dirname, "product-spec-v2-template.txt"),
+    "wds-design-guide.md": path.join(__dirname, "wds-design-guide.md"),
+    "wanted-db-knowledge.md": path.join(__dirname, "wanted-db-knowledge.md"),
+  };
+  const filePath = fileMap[filename];
+  if (!filePath) throw new Error(`알 수 없는 파일: ${filename}`);
+  return fs.readFileSync(filePath, "utf-8");
 }
 
-function loadSystemPrompt(wdsEnabled: boolean = false): string {
-  const promptPath = resolveFile("prompt-v4-prototype-first.md");
-  const knowledgePath = resolveFile("product-spec-v2-template.txt");
+// nft 정적 분석 힌트 — 이 줄이 있어야 Vercel이 파일을 번들에 포함
+path.join(__dirname, "prompt-v4-prototype-first.md");
+path.join(__dirname, "product-spec-v2-template.txt");
+path.join(__dirname, "wds-design-guide.md");
+path.join(__dirname, "wanted-db-knowledge.md");
 
+function loadSystemPrompt(wdsEnabled: boolean = false): string {
   let prompt = "";
   try {
-    prompt = fs.readFileSync(promptPath, "utf-8");
+    prompt = readFileWithLiteralPath("prompt-v4-prototype-first.md");
   } catch (err) {
     console.error("[server] ❌ 시스템 프롬프트 로드 실패:", (err as Error).message);
     prompt = "당신은 Product Spec 작성과 Prototype 생성을 돕는 AI 에이전트입니다.";
-    console.error("[server] ⚠️ 폴백 프롬프트 사용 중 (정상 동작 불가 — includeFiles 설정 확인 필요)");
+    console.error("[server] ⚠️ 폴백 프롬프트 사용 중 (정상 동작 불가)");
   }
 
   try {
-    const knowledge = fs.readFileSync(knowledgePath, "utf-8");
+    const knowledge = readFileWithLiteralPath("product-spec-v2-template.txt");
     prompt += "\n\n---\n\n# Knowledge: Product Spec 템플릿\n\n" + knowledge;
   } catch (err) {
     console.error("[server] ❌ 지식 파일 로드 실패:", (err as Error).message);
@@ -63,8 +64,7 @@ function loadSystemPrompt(wdsEnabled: boolean = false): string {
 
   if (wdsEnabled) {
     try {
-      const wdsPath = resolveFile("wds-design-guide.md");
-      const wdsGuide = fs.readFileSync(wdsPath, "utf-8");
+      const wdsGuide = readFileWithLiteralPath("wds-design-guide.md");
       prompt += "\n\n---\n\n" + wdsGuide;
       console.log(`[server] WDS 가이드 추가: ${wdsGuide.length}자`);
     } catch (err) {

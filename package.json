@@ -9,7 +9,7 @@
     "dev:server": "tsx server.ts",
     "dev:client": "vite",
     "build": "vite build",
-    "vercel-build": "cp prompt-v4-prototype-first.md product-spec-v2-template.txt wds-design-guide.md wanted-db-knowledge.md api/ && vite build",
+    "vercel-build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
