@@ -27,14 +27,15 @@ const anthropic = new Anthropic({
 // ── 시스템 프롬프트 + 지식 파일 로드 ──
 function resolveFile(filename: string): string {
   const candidates = [
-    path.resolve(__dirname, filename),           // 같은 디렉토리
-    path.resolve(__dirname, "..", filename),      // 상위 디렉토리 (Vercel includeFiles)
+    path.resolve(__dirname, filename),           // 같은 디렉토리 (로컬)
+    path.resolve(__dirname, "..", filename),      // 상위 디렉토리
     path.resolve(process.cwd(), filename),        // cwd
+    path.join("/var/task", filename),              // Vercel 서버리스 기본 경로
+    path.join("/var/task/api", filename),          // Vercel api/ 하위
   ];
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }
-  // 못 찾으면 경로 목록을 로그에 남김
   console.error(`[server] 파일을 찾을 수 없음: ${filename}`);
   console.error(`[server] 탐색 경로:`, candidates);
   return candidates[0];
@@ -48,8 +49,9 @@ function loadSystemPrompt(wdsEnabled: boolean = false): string {
   try {
     prompt = fs.readFileSync(promptPath, "utf-8");
   } catch (err) {
-    console.error("[server] ❌ 시스템 프롬프트 로드 실패 (서비스 정상 동작 불가):", (err as Error).message);
-    throw new Error("시스템 프롬프트 파일을 찾을 수 없습니다: " + promptPath);
+    console.error("[server] ❌ 시스템 프롬프트 로드 실패:", (err as Error).message);
+    prompt = "당신은 Product Spec 작성과 Prototype 생성을 돕는 AI 에이전트입니다.";
+    console.error("[server] ⚠️ 폴백 프롬프트 사용 중 (정상 동작 불가 — includeFiles 설정 확인 필요)");
   }
 
   try {
