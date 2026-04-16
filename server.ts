@@ -26,16 +26,18 @@ const anthropic = new Anthropic({
 
 // ── 시스템 프롬프트 + 지식 파일 로드 ──
 function resolveFile(filename: string): string {
-  // 1차: 프로젝트 루트 (같은 디렉토리)
-  const local = path.resolve(__dirname, filename);
-  if (fs.existsSync(local)) return local;
-  // 2차: 상위 디렉토리 (레거시 호환)
-  const parent = path.resolve(__dirname, "..", filename);
-  if (fs.existsSync(parent)) return parent;
-  // 3차: cwd (Vercel 배포)
-  const cwd = path.resolve(process.cwd(), filename);
-  if (fs.existsSync(cwd)) return cwd;
-  return local; // 기본값
+  const candidates = [
+    path.resolve(__dirname, filename),           // 같은 디렉토리
+    path.resolve(__dirname, "..", filename),      // 상위 디렉토리 (Vercel includeFiles)
+    path.resolve(process.cwd(), filename),        // cwd
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  // 못 찾으면 경로 목록을 로그에 남김
+  console.error(`[server] 파일을 찾을 수 없음: ${filename}`);
+  console.error(`[server] 탐색 경로:`, candidates);
+  return candidates[0];
 }
 
 function loadSystemPrompt(wdsEnabled: boolean = false): string {
@@ -46,15 +48,15 @@ function loadSystemPrompt(wdsEnabled: boolean = false): string {
   try {
     prompt = fs.readFileSync(promptPath, "utf-8");
   } catch (err) {
-    console.warn("[server] 시스템 프롬프트 로드 실패:", (err as Error).message);
-    prompt = "당신은 Product Spec 작성과 Prototype 생성을 돕는 AI 에이전트입니다.";
+    console.error("[server] ❌ 시스템 프롬프트 로드 실패 (서비스 정상 동작 불가):", (err as Error).message);
+    throw new Error("시스템 프롬프트 파일을 찾을 수 없습니다: " + promptPath);
   }
 
   try {
     const knowledge = fs.readFileSync(knowledgePath, "utf-8");
     prompt += "\n\n---\n\n# Knowledge: Product Spec 템플릿\n\n" + knowledge;
   } catch (err) {
-    console.warn("[server] 지식 파일 로드 실패:", (err as Error).message);
+    console.error("[server] ❌ 지식 파일 로드 실패:", (err as Error).message);
   }
 
   if (wdsEnabled) {
