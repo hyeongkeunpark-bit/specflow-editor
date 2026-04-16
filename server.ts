@@ -13,7 +13,8 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
-const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
+const DEFAULT_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
+const ALLOWED_MODELS = new Set(["claude-sonnet-4-6", "claude-opus-4-6"]);
 
 app.use(express.json({ limit: "5mb" }));
 
@@ -73,19 +74,28 @@ function loadSystemPrompt(wdsEnabled: boolean = false): string {
 // ── Ennoia API (레거시, 유지) ──
 
 app.post("/api/chat", async (req, res) => {
-  const { messages, wdsEnabled } = req.body as { messages: { role: string; content: any }[]; wdsEnabled?: boolean };
+  const { messages, wdsEnabled, model: reqModel, thinking: reqThinking } = req.body as {
+    messages: { role: string; content: any }[];
+    wdsEnabled?: boolean;
+    model?: string;
+    thinking?: string;
+  };
 
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: "messages is required" });
   }
 
   const systemPrompt = loadSystemPrompt(wdsEnabled ?? false);
+  const useModel = (reqModel && ALLOWED_MODELS.has(reqModel)) ? reqModel : DEFAULT_MODEL;
+  const thinkingConfig = reqThinking === "disabled"
+    ? undefined
+    : { type: "adaptive" as const, display: "omitted" as const };
 
   try {
     const response = await anthropic.messages.create({
-      model: MODEL,
+      model: useModel,
       max_tokens: 16384,
-      thinking: { type: "adaptive", display: "omitted" },
+      ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
       cache_control: { type: "ephemeral" },
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: messages.map((m) => {
@@ -110,10 +120,12 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode, wdsEnabled } = req.body as {
+  const { messages, systemPromptMode, wdsEnabled, model: reqModel, thinking: reqThinking } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
     wdsEnabled?: boolean;
+    model?: string;
+    thinking?: string;
   };
 
   if (!messages || messages.length === 0) {
@@ -129,13 +141,17 @@ app.post("/api/chat/stream", async (req, res) => {
   const system = systemPromptMode === "none"
     ? []
     : [{ type: "text" as const, text: loadSystemPrompt(wdsEnabled ?? false), cache_control: { type: "ephemeral" as const } }];
+  const useModel = (reqModel && ALLOWED_MODELS.has(reqModel)) ? reqModel : DEFAULT_MODEL;
+  const thinkingConfig = reqThinking === "disabled"
+    ? undefined
+    : { type: "adaptive" as const, display: "omitted" as const };
   let fullResponse = "";
 
   try {
     const stream = anthropic.messages.stream({
-      model: MODEL,
+      model: useModel,
       max_tokens: 16384,
-      thinking: { type: "adaptive", display: "omitted" },
+      ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
       cache_control: { type: "ephemeral" },
       system,
       messages: messages.map((m) => {
@@ -162,7 +178,7 @@ app.post("/api/chat/stream", async (req, res) => {
       if (!u?.input_tokens) {
         try { u = (await stream.finalMessage()).usage; } catch { /* ignore */ }
       }
-      console.log("[api/chat/stream] Stream completed");
+      console.log(`[api/chat/stream] Stream completed (model: ${useModel}, thinking: ${thinkingConfig ? "adaptive" : "off"})`);
       const thinkingTokens = u?.thinking_tokens ?? u?.anthropic_thinking_tokens ?? 0;
       console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"} thinking: ${thinkingTokens}`);
       console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
@@ -384,7 +400,7 @@ app.post("/api/share", async (req, res) => {
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`[server] API proxy running on http://localhost:${PORT}`);
-    console.log(`[server] Model: ${MODEL}`);
+    console.log(`[server] Model: ${DEFAULT_MODEL}`);
   });
 }
 

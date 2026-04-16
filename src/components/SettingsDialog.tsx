@@ -6,12 +6,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Settings, Moon, Palette, Database, Trash2 } from "lucide-react";
+import { Settings, Moon, Palette, Database, Trash2, Cpu } from "lucide-react";
 import { toast } from "sonner";
 
-type SettingsTab = "wds" | "appearance" | "storage";
+type SettingsTab = "wds" | "model" | "appearance" | "storage";
 
 const WDS_MCP_KEY = "specbot_wds_mcp_enabled";
+const MODEL_KEY = "specbot_model";
+const THINKING_KEY = "specbot_thinking";
+
+type ModelOption = "claude-sonnet-4-6" | "claude-opus-4-6";
+type ThinkingOption = "adaptive" | "disabled";
+
+const MODEL_OPTIONS: { value: ModelOption; label: string; desc: string }[] = [
+  { value: "claude-sonnet-4-6", label: "Sonnet 4.6", desc: "균형 잡힌 성능과 속도" },
+  { value: "claude-opus-4-6", label: "Opus 4.6", desc: "최고 품질, 느림, 비용 5배" },
+];
+
+const THINKING_OPTIONS: { value: ThinkingOption; label: string; desc: string }[] = [
+  { value: "adaptive", label: "자동", desc: "복잡도에 따라 자동 조절" },
+  { value: "disabled", label: "끄기", desc: "추론 없이 바로 응답, 빠르고 저렴" },
+];
 
 function getStorageInfo() {
   let totalBytes = 0;
@@ -51,6 +66,12 @@ export default function SettingsDialog({
     const saved = localStorage.getItem(WDS_MCP_KEY);
     return saved === null ? true : saved === "true";
   });
+  const [model, setModel] = useState<ModelOption>(() => {
+    return (localStorage.getItem(MODEL_KEY) as ModelOption) || "claude-sonnet-4-6";
+  });
+  const [thinking, setThinking] = useState<ThinkingOption>(() => {
+    return (localStorage.getItem(THINKING_KEY) as ThinkingOption) || "adaptive";
+  });
   const [storageInfo, setStorageInfo] = useState<ReturnType<typeof getStorageInfo> | null>(null);
 
   useEffect(() => {
@@ -65,6 +86,20 @@ export default function SettingsDialog({
     toast.success(checked ? "WDS 디자인 시스템 활성화" : "WDS 디자인 시스템 비활성화");
   };
 
+  const handleModelChange = (value: ModelOption) => {
+    setModel(value);
+    localStorage.setItem(MODEL_KEY, value);
+    const label = MODEL_OPTIONS.find(o => o.value === value)?.label ?? value;
+    toast.success(`모델 변경: ${label}`);
+  };
+
+  const handleThinkingChange = (value: ThinkingOption) => {
+    setThinking(value);
+    localStorage.setItem(THINKING_KEY, value);
+    const label = THINKING_OPTIONS.find(o => o.value === value)?.label ?? value;
+    toast.success(`추론 모드 변경: ${label}`);
+  };
+
   const handleClearStorage = () => {
     const sessionCount = JSON.parse(localStorage.getItem("specbot_sessions") || "[]").length;
     if (!window.confirm(`모든 데이터를 삭제합니다.\n(세션 ${sessionCount}개 포함)\n\n계속하시겠습니까?`)) return;
@@ -76,6 +111,7 @@ export default function SettingsDialog({
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: "wds", label: "디자인 시스템", icon: <Palette className="w-4 h-4" /> },
+    { id: "model", label: "AI 모델", icon: <Cpu className="w-4 h-4" /> },
     { id: "appearance", label: "화면 설정", icon: <Moon className="w-4 h-4" /> },
     { id: "storage", label: "저장소 관리", icon: <Database className="w-4 h-4" /> },
   ];
@@ -130,6 +166,71 @@ export default function SettingsDialog({
                     </div>
                   </div>
                   <Switch checked={wdsMcpEnabled} onCheckedChange={handleWdsMcpToggle} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === "model" && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium mb-1">AI 모델</h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Prototype/Spec 생성에 사용할 모델과 추론 방식을 선택합니다.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">모델</div>
+                  {MODEL_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        model === opt.value
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-accent/30"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="model"
+                        value={opt.value}
+                        checked={model === opt.value}
+                        onChange={() => handleModelChange(opt.value)}
+                        className="accent-primary"
+                      />
+                      <div>
+                        <div className="text-sm font-medium">{opt.label}</div>
+                        <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">확장 추론 (Extended Thinking)</div>
+                  {THINKING_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        thinking === opt.value
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-accent/30"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="thinking"
+                        value={opt.value}
+                        checked={thinking === opt.value}
+                        onChange={() => handleThinkingChange(opt.value)}
+                        className="accent-primary"
+                      />
+                      <div>
+                        <div className="text-sm font-medium">{opt.label}</div>
+                        <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
             )}
