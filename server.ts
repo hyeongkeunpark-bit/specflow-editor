@@ -76,6 +76,16 @@ function loadSystemPrompt(wdsEnabled: boolean = false): string {
   return prompt;
 }
 
+// ── 헬스체크 ──
+app.get("/api/health", (_req, res) => {
+  const prompt = loadSystemPrompt(false);
+  res.json({
+    status: prompt.length > 100 ? "ok" : "error",
+    promptLength: prompt.length,
+    env: process.env.VERCEL ? "vercel" : "local",
+  });
+});
+
 // ── BigQuery 도구 ──
 
 const DANGEROUS_SQL = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i;
