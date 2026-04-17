@@ -87,26 +87,14 @@ app.get("/api/health", (_req, res) => {
 
 // ── DB 지식 조회 도구 ──
 
-function queryDbKnowledge(): string {
+function loadDbKnowledge(): string {
   try {
     return readFileWithLiteralPath("wanted-db-knowledge.md");
   } catch (err) {
     console.warn("[db-knowledge] 파일 로드 실패:", (err as Error).message);
-    return "DB 지식 파일을 찾을 수 없습니다.";
+    return "";
   }
 }
-
-const DB_TOOL: Anthropic.Tool = {
-  name: "query_db",
-  description: "원티드 서비스의 DB 구조를 조회합니다. 테이블 스키마, 컬럼 구조, 상태값/Enum 정의, 테이블 간 관계, 기능별 관련 테이블을 확인할 수 있습니다. Spec 작성 시 기존 DB 구조 파악이 필요하면 호출하세요.",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      question: { type: "string", description: "확인하고 싶은 DB 구조 (예: apply 테이블 구조, 지원 관련 테이블, 채용공고 상태값)" }
-    },
-    required: ["question"]
-  }
-};
 
 // ── Ennoia API (레거시, 유지) ──
 
@@ -157,12 +145,13 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode, wdsEnabled, model: reqModel, thinking: reqThinking } = req.body as {
+  const { messages, systemPromptMode, wdsEnabled, model: reqModel, thinking: reqThinking, includeDbContext } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
     wdsEnabled?: boolean;
     model?: string;
     thinking?: string;
+    includeDbContext?: boolean;
   };
 
   if (!messages || messages.length === 0) {
@@ -184,78 +173,56 @@ app.post("/api/chat/stream", async (req, res) => {
     : { type: "adaptive" as const, display: "omitted" as const };
   let fullResponse = "";
 
-  const apiMessages: any[] = messages.map((m) => {
+  // DB 컨텍스트 주입: Use Case 분석 시 DB 구조를 마지막 메시지에 추가
+  const apiMessages: any[] = messages.map((m, i) => {
     const role = m.role === "assistant" ? "assistant" as const : "user" as const;
+    if (includeDbContext && role === "user" && i === messages.length - 1) {
+      const dbKnowledge = loadDbKnowledge();
+      if (dbKnowledge) {
+        const content = typeof m.content === "string"
+          ? m.content + "\n\n---\n\n[참고: 원티드 DB 구조]\n" + dbKnowledge
+          : m.content;
+        console.log(`[db-knowledge] DB 구조 주입: ${dbKnowledge.length}자`);
+        return { role, content };
+      }
+    }
     return { role, content: m.content };
   });
 
-  const MAX_TOOL_ROUNDS = 3;
-
   try {
-    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const stream = anthropic.messages.stream({
-        model: useModel,
-        max_tokens: 16384,
-        ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
-        cache_control: { type: "ephemeral" },
-        system,
-        messages: apiMessages,
-        tools: [DB_TOOL],
-      });
+    const stream = anthropic.messages.stream({
+      model: useModel,
+      max_tokens: 16384,
+      ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
+      cache_control: { type: "ephemeral" },
+      system,
+      messages: apiMessages,
+    });
 
-      // 텍스트 토큰은 기존과 동일하게 SSE 전송
-      stream.on("text", (text) => {
-        fullResponse += text;
-        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-      });
+    stream.on("text", (text) => {
+      fullResponse += text;
+      res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+    });
 
-      let finalMessage: Anthropic.Message;
-      try {
-        finalMessage = await stream.finalMessage();
-      } catch (error: any) {
-        console.error("[api/chat/stream] Stream error:", error.message);
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-        res.write("data: [DONE]\n\n");
-        res.end();
-        return;
+    stream.on("error", (error) => {
+      console.error("[api/chat/stream] Stream error:", error.message);
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    });
+
+    stream.on("end", async () => {
+      if (res.writableEnded) return;
+      let u: any = stream.currentMessageSnapshot?.usage;
+      if (!u?.input_tokens) {
+        try { u = (await stream.finalMessage()).usage; } catch { /* ignore */ }
       }
-
-      // tool_use가 없으면 종료 (기존과 동일한 흐름)
-      const toolUseBlocks = finalMessage.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-      if (toolUseBlocks.length === 0 || finalMessage.stop_reason !== "tool_use") {
-        const u = finalMessage.usage as any;
-        const thinkingTokens = u?.thinking_tokens ?? u?.anthropic_thinking_tokens ?? 0;
-        console.log(`[api/chat/stream] Stream completed (model: ${useModel}, thinking: ${thinkingConfig ? "adaptive" : "off"}, tool_rounds: ${round})`);
-        console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"} thinking: ${thinkingTokens}`);
-        console.log("[api/chat/stream] === 응답 원문 (처음 500자) ===");
-        console.log(fullResponse.slice(0, 500));
-        console.log("전체 길이:", fullResponse.length, "자");
-        break;
-      }
-
-      // tool_use 처리: DB 지식 파일 조회
-      console.log(`[api/chat/stream] Tool use round ${round + 1}: ${toolUseBlocks.map(b => b.name).join(", ")}`);
-      res.write(`data: ${JSON.stringify({ content: "\n\n_(DB 구조 확인 중...)_\n\n" })}\n\n`);
-
-      apiMessages.push({ role: "assistant" as const, content: finalMessage.content });
-
-      const toolResults: any[] = [];
-      for (const block of toolUseBlocks) {
-        const question = (block.input as any).question || "";
-        console.log(`[db-knowledge] 질문: ${question}`);
-        const result = queryDbKnowledge();
-        console.log(`[db-knowledge] 결과: ${result.length}자`);
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: result,
-        });
-      }
-      apiMessages.push({ role: "user" as const, content: toolResults });
-    }
-
-    res.write("data: [DONE]\n\n");
-    res.end();
+      const thinkingTokens = u?.thinking_tokens ?? u?.anthropic_thinking_tokens ?? 0;
+      console.log(`[api/chat/stream] Stream completed (model: ${useModel}, thinking: ${thinkingConfig ? "adaptive" : "off"}, dbContext: ${!!includeDbContext})`);
+      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"} thinking: ${thinkingTokens}`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    });
   } catch (error: any) {
     console.error("[api/chat/stream] Error:", error.message);
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
