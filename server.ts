@@ -213,12 +213,12 @@ app.post("/api/chat/stream", async (req, res) => {
 
     stream.on("end", async () => {
       if (res.writableEnded) return;
-      let u: any = stream.currentMessageSnapshot?.usage;
-      if (!u?.input_tokens) {
-        try { u = (await stream.finalMessage()).usage; } catch { /* ignore */ }
-      }
+      let finalMsg: any = null;
+      try { finalMsg = await stream.finalMessage(); } catch { /* ignore */ }
+      const u: any = finalMsg?.usage ?? stream.currentMessageSnapshot?.usage;
+      const stopReason = finalMsg?.stop_reason ?? stream.currentMessageSnapshot?.stop_reason ?? "unknown";
       const thinkingTokens = u?.thinking_tokens ?? u?.anthropic_thinking_tokens ?? 0;
-      console.log(`[api/chat/stream] Stream completed (model: ${useModel}, thinking: ${thinkingConfig ? "adaptive" : "off"}, dbContext: ${!!includeDbContext})`);
+      console.log(`[api/chat/stream] stop_reason: ${stopReason} | output_chars: ${fullResponse.length}`);
       console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"} thinking: ${thinkingTokens}`);
       res.write("data: [DONE]\n\n");
       res.end();
