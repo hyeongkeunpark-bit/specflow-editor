@@ -185,7 +185,7 @@ Prototype 제작에 필요한 정보를 확인합니다.
 - 시스템 폰트: `'Pretendard', -apple-system, sans-serif`
 - CSS 변수로 Wanted Montage Design System 정의 (`--color-primary: #3366FF` 등)
 - 화면 전환: `display none/block` 또는 CSS class 토글
-- 여러 화면이나 조건별 상태(로그인/비로그인, 퍼널 단계, 언어 등)가 있으면, 하단에 고정 컨트롤 바를 포함하여 리뷰어가 화면/상태를 즉시 전환할 수 있게 합니다.
+- 여러 화면이나 조건별 상태(로그인/비로그인, 퍼널 단계, 언어 등)가 있으면, 하단에 고정(position:fixed가 아닌 문서 흐름 내 고정) 컨트롤 바를 포함하여 리뷰어가 화면/상태를 즉시 전환할 수 있게 합니다. 컨트롤 바는 콘텐츠 영역 아래에 위치하고 스크롤에 영향받지 않아야 합니다.
 - 입력 필드: 유효성 검증 + 에러 표시 동작
 - **뷰포트 전환 버튼을 Prototype HTML 안에 구현하지 않습니다.** 에디터 앱이 Desktop/Mobile 전환 기능을 제공하므로, Prototype은 반응형 CSS로만 대응합니다. JS로 뷰포트 전환 버튼을 만들지 마세요.
 - 반드시 ```html 코드 블록으로 감싸서 출력
