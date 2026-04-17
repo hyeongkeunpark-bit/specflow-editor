@@ -5,7 +5,6 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { exec } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,37 +85,26 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// ── BigQuery 도구 ──
+// ── DB 지식 조회 도구 ──
 
-const DANGEROUS_SQL = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i;
-
-function executeBqQuery(sql: string): Promise<string> {
-  if (DANGEROUS_SQL.test(sql)) {
-    return Promise.resolve("오류: SELECT 쿼리만 허용됩니다.");
+function queryDbKnowledge(): string {
+  try {
+    return readFileWithLiteralPath("wanted-db-knowledge.md");
+  } catch (err) {
+    console.warn("[db-knowledge] 파일 로드 실패:", (err as Error).message);
+    return "DB 지식 파일을 찾을 수 없습니다.";
   }
-  return new Promise((resolve) => {
-    const escaped = sql.replace(/'/g, "'\\''");
-    const cmd = `export PATH=/opt/homebrew/share/google-cloud-sdk/bin:"$PATH" && bq query --format=json --use_legacy_sql=false --max_rows=50 '${escaped}'`;
-    exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
-      if (err) {
-        console.warn("[bq] 쿼리 실패:", stderr || err.message);
-        resolve(`쿼리 실패: ${(stderr || err.message).slice(0, 500)}`);
-      } else {
-        resolve(stdout.slice(0, 8000));
-      }
-    });
-  });
 }
 
-const BQ_TOOL: Anthropic.Tool = {
+const DB_TOOL: Anthropic.Tool = {
   name: "query_db",
-  description: "원티드 서비스의 BigQuery 데이터베이스를 조회합니다. 테이블 스키마 확인, 컬럼 구조, 샘플 데이터 조회에 사용합니다. 프로젝트: wanted-data, 데이터셋: wanteddb. SELECT만 허용됩니다.",
+  description: "원티드 서비스의 DB 구조를 조회합니다. 테이블 스키마, 컬럼 구조, 상태값/Enum 정의, 테이블 간 관계, 기능별 관련 테이블을 확인할 수 있습니다. Spec 작성 시 기존 DB 구조 파악이 필요하면 호출하세요.",
   input_schema: {
     type: "object" as const,
     properties: {
-      sql: { type: "string", description: "실행할 SQL 쿼리 (SELECT만 허용). 예: SELECT column_name, data_type FROM `wanted-data.wanteddb.INFORMATION_SCHEMA.COLUMNS` WHERE table_name = 'apply'" }
+      question: { type: "string", description: "확인하고 싶은 DB 구조 (예: apply 테이블 구조, 지원 관련 테이블, 채용공고 상태값)" }
     },
-    required: ["sql"]
+    required: ["question"]
   }
 };
 
@@ -212,7 +200,7 @@ app.post("/api/chat/stream", async (req, res) => {
         cache_control: { type: "ephemeral" },
         system,
         messages: apiMessages,
-        tools: [BQ_TOOL],
+        tools: [DB_TOOL],
       });
 
       // 텍스트 토큰은 기존과 동일하게 SSE 전송
@@ -245,18 +233,18 @@ app.post("/api/chat/stream", async (req, res) => {
         break;
       }
 
-      // tool_use 처리: bq 실행
+      // tool_use 처리: DB 지식 파일 조회
       console.log(`[api/chat/stream] Tool use round ${round + 1}: ${toolUseBlocks.map(b => b.name).join(", ")}`);
-      res.write(`data: ${JSON.stringify({ content: "\n\n_(DB 조회 중...)_\n\n" })}\n\n`);
+      res.write(`data: ${JSON.stringify({ content: "\n\n_(DB 구조 확인 중...)_\n\n" })}\n\n`);
 
       apiMessages.push({ role: "assistant" as const, content: finalMessage.content });
 
       const toolResults: any[] = [];
       for (const block of toolUseBlocks) {
-        const sql = (block.input as any).sql || "";
-        console.log(`[bq] 쿼리: ${sql.slice(0, 200)}`);
-        const result = await executeBqQuery(sql);
-        console.log(`[bq] 결과: ${result.length}자`);
+        const question = (block.input as any).question || "";
+        console.log(`[db-knowledge] 질문: ${question}`);
+        const result = queryDbKnowledge();
+        console.log(`[db-knowledge] 결과: ${result.length}자`);
         toolResults.push({
           type: "tool_result",
           tool_use_id: block.id,
