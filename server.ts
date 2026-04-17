@@ -119,7 +119,7 @@ app.post("/api/chat", async (req, res) => {
   try {
     const response = await anthropic.messages.create({
       model: useModel,
-      max_tokens: 16384,
+      max_tokens: 64000,
       ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
       cache_control: { type: "ephemeral" },
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
@@ -192,7 +192,7 @@ app.post("/api/chat/stream", async (req, res) => {
   try {
     const stream = anthropic.messages.stream({
       model: useModel,
-      max_tokens: 16384,
+      max_tokens: 64000,
       ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
       cache_control: { type: "ephemeral" },
       system,
