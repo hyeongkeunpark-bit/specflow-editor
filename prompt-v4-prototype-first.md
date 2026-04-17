@@ -183,8 +183,7 @@ Prototype 제작에 필요한 정보를 확인합니다.
 코드 규칙:
 - `<!DOCTYPE html>` 완전한 HTML. `<style>`에 CSS, `<script>`에 JS.
 - 시스템 폰트: `'Pretendard', -apple-system, sans-serif`
-- CSS 변수로 Wanted Montage Design System 정의. WDS 디자인 가이드가 제공된 경우, 반드시 해당 가이드의 CSS 변수명과 색상값을 사용합니다. 가이드가 없으면 `--color-primary: #3366FF` 등을 기본으로 사용합니다.
-- WDS 가이드가 제공된 경우, 컴포넌트의 HTML 구조와 CSS 클래스명을 가이드에 맞춰 작성합니다. 기존 Prototype을 수정할 때는 기존 스타일을 유지하고 새 요소에만 WDS를 적용합니다.
+- CSS 변수로 Wanted Montage Design System 정의 (`--color-primary: #3366FF` 등)
 - 화면 전환: `display none/block` 또는 CSS class 토글
 - 여러 화면이나 조건별 상태(로그인/비로그인, 퍼널 단계, 언어 등)가 있으면, 하단에 고정 컨트롤 바를 포함하여 리뷰어가 화면/상태를 즉시 전환할 수 있게 합니다.
 - 입력 필드: 유효성 검증 + 에러 표시 동작

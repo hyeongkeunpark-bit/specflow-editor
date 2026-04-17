@@ -30,7 +30,6 @@ function readFileWithLiteralPath(filename: string): string {
   const fileMap: Record<string, string> = {
     "prompt-v4-prototype-first.md": path.join(__dirname, "prompt-v4-prototype-first.md"),
     "product-spec-v2-template.txt": path.join(__dirname, "product-spec-v2-template.txt"),
-    "wds-design-guide.md": path.join(__dirname, "wds-design-guide.md"),
     "wanted-db-knowledge.md": path.join(__dirname, "wanted-db-knowledge.md"),
   };
   const filePath = fileMap[filename];
@@ -41,10 +40,9 @@ function readFileWithLiteralPath(filename: string): string {
 // nft 정적 분석 힌트 — 이 줄이 있어야 Vercel이 파일을 번들에 포함
 path.join(__dirname, "prompt-v4-prototype-first.md");
 path.join(__dirname, "product-spec-v2-template.txt");
-path.join(__dirname, "wds-design-guide.md");
 path.join(__dirname, "wanted-db-knowledge.md");
 
-function loadSystemPrompt(wdsEnabled: boolean = false): string {
+function loadSystemPrompt(): string {
   let prompt = "";
   try {
     prompt = readFileWithLiteralPath("prompt-v4-prototype-first.md");
@@ -61,23 +59,13 @@ function loadSystemPrompt(wdsEnabled: boolean = false): string {
     console.error("[server] ❌ 지식 파일 로드 실패:", (err as Error).message);
   }
 
-  if (wdsEnabled) {
-    try {
-      const wdsGuide = readFileWithLiteralPath("wds-design-guide.md");
-      prompt += "\n\n---\n\n" + wdsGuide;
-      console.log(`[server] WDS 가이드 추가: ${wdsGuide.length}자`);
-    } catch (err) {
-      console.warn("[server] WDS 가이드 로드 실패:", (err as Error).message);
-    }
-  }
-
-  console.log(`[server] 시스템 프롬프트 로드 완료: ${prompt.length}자 (WDS: ${wdsEnabled ? "ON" : "OFF"})`);
+  console.log(`[server] 시스템 프롬프트 로드 완료: ${prompt.length}자`);
   return prompt;
 }
 
 // ── 헬스체크 ──
 app.get("/api/health", (_req, res) => {
-  const prompt = loadSystemPrompt(false);
+  const prompt = loadSystemPrompt();
   res.json({
     status: prompt.length > 100 ? "ok" : "error",
     promptLength: prompt.length,
@@ -99,28 +87,22 @@ function loadDbKnowledge(): string {
 // ── Ennoia API (레거시, 유지) ──
 
 app.post("/api/chat", async (req, res) => {
-  const { messages, wdsEnabled, model: reqModel, thinking: reqThinking } = req.body as {
+  const { messages, model: reqModel } = req.body as {
     messages: { role: string; content: any }[];
-    wdsEnabled?: boolean;
     model?: string;
-    thinking?: string;
   };
 
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: "messages is required" });
   }
 
-  const systemPrompt = loadSystemPrompt(wdsEnabled ?? false);
+  const systemPrompt = loadSystemPrompt();
   const useModel = (reqModel && ALLOWED_MODELS.has(reqModel)) ? reqModel : DEFAULT_MODEL;
-  const thinkingConfig = reqThinking === "disabled"
-    ? undefined
-    : { type: "adaptive" as const, display: "omitted" as const };
 
   try {
     const response = await anthropic.messages.create({
       model: useModel,
       max_tokens: 64000,
-      ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
       cache_control: { type: "ephemeral" },
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: messages.map((m) => {
@@ -145,12 +127,10 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode, wdsEnabled, model: reqModel, thinking: reqThinking, includeDbContext } = req.body as {
+  const { messages, systemPromptMode, model: reqModel, includeDbContext } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
-    wdsEnabled?: boolean;
     model?: string;
-    thinking?: string;
     includeDbContext?: boolean;
   };
 
@@ -166,11 +146,8 @@ app.post("/api/chat/stream", async (req, res) => {
 
   const system = systemPromptMode === "none"
     ? []
-    : [{ type: "text" as const, text: loadSystemPrompt(wdsEnabled ?? false), cache_control: { type: "ephemeral" as const } }];
+    : [{ type: "text" as const, text: loadSystemPrompt(), cache_control: { type: "ephemeral" as const } }];
   const useModel = (reqModel && ALLOWED_MODELS.has(reqModel)) ? reqModel : DEFAULT_MODEL;
-  const thinkingConfig = reqThinking === "disabled"
-    ? undefined
-    : { type: "adaptive" as const, display: "omitted" as const };
   let fullResponse = "";
 
   // DB 컨텍스트 주입: Use Case 분석 시 DB 구조를 마지막 메시지에 추가
@@ -193,7 +170,6 @@ app.post("/api/chat/stream", async (req, res) => {
     const stream = anthropic.messages.stream({
       model: useModel,
       max_tokens: 64000,
-      ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
       cache_control: { type: "ephemeral" },
       system,
       messages: apiMessages,
@@ -217,9 +193,8 @@ app.post("/api/chat/stream", async (req, res) => {
       try { finalMsg = await stream.finalMessage(); } catch { /* ignore */ }
       const u: any = finalMsg?.usage ?? stream.currentMessageSnapshot?.usage;
       const stopReason = finalMsg?.stop_reason ?? stream.currentMessageSnapshot?.stop_reason ?? "unknown";
-      const thinkingTokens = u?.thinking_tokens ?? u?.anthropic_thinking_tokens ?? 0;
       console.log(`[api/chat/stream] stop_reason: ${stopReason} | output_chars: ${fullResponse.length}`);
-      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"} thinking: ${thinkingTokens}`);
+      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
       res.write("data: [DONE]\n\n");
       res.end();
     });

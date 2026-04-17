@@ -53,12 +53,8 @@ export interface SendOptions {
   images?: { base64: string; mediaType: string }[];
   /** 시스템 프롬프트 모드 — "none"이면 시스템 프롬프트 제외 (토큰 절감) */
   systemPromptMode?: "full" | "none";
-  /** WDS 디자인 시스템 활성화 여부 */
-  wdsEnabled?: boolean;
   /** AI 모델 선택 */
   model?: string;
-  /** 추론 모드 */
-  thinking?: string;
   /** DB 구조 컨텍스트 포함 여부 */
   includeDbContext?: boolean;
   /** 취소 시그널 */
@@ -380,17 +376,13 @@ async function fetchChatStream(
   existingHtml?: string,
   signal?: AbortSignal,
   systemPromptMode?: "full" | "none",
-  wdsEnabled?: boolean,
   model?: string,
-  thinking?: string,
   includeDbContext?: boolean,
 ): Promise<ChatResponse> {
   // existingHtml을 그대로 사용 — AI에게 보낸 포맷과 동일하게 delta 매칭
   const body: Record<string, unknown> = { messages };
   if (systemPromptMode) body.systemPromptMode = systemPromptMode;
-  if (wdsEnabled) body.wdsEnabled = true;
   if (model) body.model = model;
-  if (thinking) body.thinking = thinking;
   if (includeDbContext) body.includeDbContext = true;
   const res = await fetch("/api/chat/stream", {
     method: "POST",
@@ -478,16 +470,16 @@ async function fetchChatStream(
 }
 
 /** 단일 호출 — 504/overloaded 시 2초 대기 후 1회 재시도 */
-async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string, signal?: AbortSignal, systemPromptMode?: "full" | "none", wdsEnabled?: boolean, model?: string, thinking?: string, includeDbContext?: boolean): Promise<ChatResponse> {
+async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string, signal?: AbortSignal, systemPromptMode?: "full" | "none", model?: string, includeDbContext?: boolean): Promise<ChatResponse> {
   try {
-    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, wdsEnabled, model, thinking, includeDbContext);
+    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext);
   } catch (err) {
     if (!isRetryable(err)) throw err;
     console.warn("[callChat] 재시도 (2초 대기):", err instanceof Error ? err.message : err);
     await sleep(2000);
   }
   try {
-    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, wdsEnabled, model, thinking, includeDbContext);
+    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext);
   } catch (err) {
     // 재시도도 실패 → 유저 친화적 메시지로 교체
     if (err instanceof Error && err.message.toLowerCase().includes("overloaded")) {
@@ -507,9 +499,9 @@ export async function sendMessage(
   const dummy = matchDummy(userMessage);
   if (dummy) return dummy;
 
-  const { onToken, existingHtml, signal, systemPromptMode, wdsEnabled, model, thinking, includeDbContext, ...buildOpts } = options;
+  const { onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, ...buildOpts } = options;
   const messages = buildMessages(history, userMessage, buildOpts);
-  return callChat(messages, onToken, existingHtml, signal, systemPromptMode, wdsEnabled, model, thinking, includeDbContext);
+  return callChat(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext);
 }
 
 /**

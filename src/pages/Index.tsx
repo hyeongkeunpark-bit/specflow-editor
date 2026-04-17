@@ -178,9 +178,7 @@ const Index = () => {
       existingHtml: activeSession.htmlContent || undefined,
       images: attachments?.images?.map((img) => ({ base64: img.base64, mediaType: img.mediaType })),
       signal: controller.signal,
-      wdsEnabled: localStorage.getItem("specbot_wds_mcp_enabled") !== "false",
       model: localStorage.getItem("specbot_model") || undefined,
-      thinking: localStorage.getItem("specbot_thinking") || undefined,
 
       ...extraOptions,
       onToken: (token) => {
@@ -318,9 +316,7 @@ const Index = () => {
         htmlContent: activeSession.htmlContent,
         changeLog: [...protoChangeLogRef.current],
       },
-      wdsEnabled: localStorage.getItem("specbot_wds_mcp_enabled") !== "false",
       model: localStorage.getItem("specbot_model") || undefined,
-      thinking: localStorage.getItem("specbot_thinking") || undefined,
 
       onToken: (token) => {
         rawStreamRef.current += token;
@@ -478,9 +474,7 @@ const Index = () => {
         htmlContent: activeSession.htmlContent,
       },
       existingHtml: activeSession.htmlContent,
-      wdsEnabled: localStorage.getItem("specbot_wds_mcp_enabled") !== "false",
       model: localStorage.getItem("specbot_model") || undefined,
-      thinking: localStorage.getItem("specbot_thinking") || undefined,
 
       onToken: (token) => {
         rawStreamRef.current += token;
