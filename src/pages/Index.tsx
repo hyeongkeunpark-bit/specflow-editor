@@ -382,7 +382,7 @@ const Index = () => {
 
   // ── [Use Case 분석] 버튼 → 일반 채팅으로 분석 요청 ──
   const handleEdgeCaseAnalysis = useCallback(() => {
-    handleSend("현재 Prototype과 Spec을 분석해서, 아직 대응되지 않은 Use Case와 Edge Case를 찾아줘. 이미 Prototype이나 Spec에서 처리하고 있는 항목은 제외하고, 누락된 항목만 우선순위(높음/중간/낮음) 기준으로 정리해줘. 해결방안은 지금 제안하지 말고, 누락 항목만 보여줘. Prototype을 수정하지 마. 마지막에 '위 항목 중 반영할 것을 알려주세요'라고 안내해줘.", undefined, { systemPromptMode: "none", includeDbContext: true });
+    handleSend("현재 Prototype과 Spec을 분석해서, 개발자/디자이너/QA가 구현·작업 중 Spec에 답이 없어서 막힐 수 있는 항목을 찾아줘. 이미 Spec이나 Prototype에서 처리된 항목은 제외. 각 항목에 맥락상 합리적인 처리 방안을 함께 제시해줘. 구현 디테일(debounce, 페이지네이션, 로딩 UI 등 개발자가 판단할 영역)은 제외. Prototype을 수정하지 마. 마지막에 '위 항목을 확인해주세요. 수정할 항목이 있으면 번호로 알려주시고, 없으면 위 항목을 Spec에 반영해달라고 해주세요.'라고 안내해줘.", undefined, { systemPromptMode: "none", includeDbContext: true });
   }, [handleSend]);
 
   // ── Spec 직접 편집 콜백 ──

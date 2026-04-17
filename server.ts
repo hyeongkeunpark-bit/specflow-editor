@@ -144,6 +144,8 @@ app.post("/api/chat/stream", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
+  const startTime = Date.now();
+
   const system = systemPromptMode === "none"
     ? []
     : [{ type: "text" as const, text: loadSystemPrompt(), cache_control: { type: "ephemeral" as const } }];
@@ -193,8 +195,10 @@ app.post("/api/chat/stream", async (req, res) => {
       try { finalMsg = await stream.finalMessage(); } catch { /* ignore */ }
       const u: any = finalMsg?.usage ?? stream.currentMessageSnapshot?.usage;
       const stopReason = finalMsg?.stop_reason ?? stream.currentMessageSnapshot?.stop_reason ?? "unknown";
-      console.log(`[api/chat/stream] stop_reason: ${stopReason} | output_chars: ${fullResponse.length}`);
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      console.log(`[api/chat/stream] duration: ${duration}s | stop_reason: ${stopReason} | output_chars: ${fullResponse.length}`);
       console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
+      if (duration > 120) console.warn(`[api/chat/stream] ⚠️ SLOW: ${duration}s`);
       res.write("data: [DONE]\n\n");
       res.end();
     });
