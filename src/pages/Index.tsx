@@ -129,12 +129,12 @@ const Index = () => {
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
-    // 취소용 AbortController 생성 + 90초 타임아웃 자동 취소
+    // 취소용 AbortController 생성 + 330초 타임아웃 자동 취소 (Vercel 300s + 버퍼 30s)
     const controller = new AbortController();
     abortRef.current = controller;
     const timeoutId = setTimeout(() => {
       if (!controller.signal.aborted) controller.abort();
-    }, 120_000);
+    }, 330_000);
 
     // 스트리밍용 AI 메시지 placeholder
     const aiMsgId = (Date.now() + 1).toString();
