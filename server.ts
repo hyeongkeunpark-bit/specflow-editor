@@ -86,7 +86,16 @@ function loadDbKnowledge(): string {
   }
 }
 
-// ── Confluence 검색 (관련 정책/기획 문서 참조) ──
+// ── Confluence 탐색 (Phase 3: 결정 비교 기반) ──
+//
+// 파이프라인:
+//   1. [Haiku-1] Spec → 건드리는 "영역" 3~5개 (짧은 phrase)
+//   2. [Confluence] 영역별 병렬 검색 → dedupe 후보 ~20건 (excerpt만)
+//   3. [Haiku-2] origin/noise 필터 + 랭킹 → top 3~5
+//   4. [Confluence] top 3~5 본문 fetch + HTML strip
+//   5. [Haiku-3] 각 본문에서 영역별 "입장" 추출
+//   6. 구조화 포맷으로 Sonnet에 주입
+// 실패 시: 빈도 기반 excerpt v1 fallback
 
 const KO_STOPWORDS = new Set([
   "있다","없다","하는","되는","대한","기능","페이지","화면","사용자","유저","서비스",
@@ -111,76 +120,443 @@ function extractKeywords(text: string, topN = 5): string[] {
     .map(([w]) => w);
 }
 
-type ConfluenceHit = { id: string; title: string; url: string; excerpt: string };
-
-async function searchConfluence(specText: string, limit = 3): Promise<ConfluenceHit[]> {
+// Confluence 환경변수 묶음 로드
+type ConfluenceEnv = { email: string; token: string; base: string; spaceKeys: string[]; rootPageId: string; auth: string };
+function loadConfluenceEnv(): ConfluenceEnv | null {
   const email = process.env.ATLASSIAN_EMAIL;
   const token = process.env.ATLASSIAN_API_TOKEN;
   const base = process.env.ATLASSIAN_BASE_URL;
-  const spaceKeys = (process.env.CONFLUENCE_SPACE_KEYS ?? "")
-    .split(",").map((s) => s.trim()).filter(Boolean);
+  const spaceKeys = (process.env.CONFLUENCE_SPACE_KEYS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const rootPageId = (process.env.CONFLUENCE_ROOT_PAGE_ID ?? "").trim();
-
-  if (!email || !token || !base || spaceKeys.length === 0) {
-    console.warn("[confluence] 환경변수 누락 — 검색 건너뜀");
-    return [];
-  }
-
-  const keywords = extractKeywords(specText, 5);
-  if (keywords.length === 0) return [];
-
-  const spaceClause = spaceKeys.length === 1
-    ? `space = "${spaceKeys[0]}"`
-    : `space in (${spaceKeys.map((k) => `"${k}"`).join(",")})`;
-  const ancestorClause = rootPageId ? ` AND ancestor = ${rootPageId}` : "";
-  const textClause = keywords.map((k) => `text ~ "${k.replace(/"/g, '\\"')}"`).join(" OR ");
-  const cql = `${spaceClause}${ancestorClause} AND type = page AND (${textClause})`;
-
+  if (!email || !token || !base || spaceKeys.length === 0) return null;
   const auth = "Basic " + Buffer.from(`${email}:${token}`).toString("base64");
-  const url = new URL(`${base}/rest/api/search`);
-  url.searchParams.set("cql", cql);
-  url.searchParams.set("limit", String(limit));
+  return { email, token, base, spaceKeys, rootPageId, auth };
+}
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+// ── 1단계: Haiku로 "영역" 추출 (결정/침묵 무관) ──
+const HAIKU_AREA_SYSTEM = `당신은 제품 Spec에서 **의사결정이 필요한 영역**을 식별하는 분석가다.
+
+입력된 Spec이 **건드리는 모든 영역**을 짧은 한국어 phrase로 뽑아라. 결정을 **내렸든 침묵했든** 무관하다. Confluence 지식 베이스에서 과거 선행 결정/정책을 찾기 위한 검색 앵커로 쓰인다.
+
+**포함할 것 (영역):**
+- 사용자 상태별 분기 영역: "비로그인 접근", "이력서 등록 판단"
+- 데이터 선정·카운팅 기준: "매력 기업 선정 기준", "공고 카운팅 기준"
+- UX 흐름 영역: "회원가입 유도", "로그인 유도 UX"
+- 실험/측정 영역: "A/B 쿠키 유지", "GTM 이벤트 정의"
+- 범위·정책 경계: "기업 상세 이동", "에러 처리"
+
+**제외할 것:**
+- 구현 디테일 (debounce, 로딩 UI 등)
+- 너무 일반적 단어 ("공고", "기능")
+- Spec 문장 그대로 복사
+
+**출력 규칙:**
+- JSON 배열만. 설명·마크다운 코드블록 금지.
+- 각 phrase **2~4어절** 한국어 (영어 고유명사 허용: A/B, GTM, API)
+- 3~5개
+
+**예시:**
+
+Spec: "채용 공고 상세에서 비로그인도 접근 가능. 지원 버튼 누르면 로그인 유도. 이력서 등록 여부로 분기."
+출력: ["비로그인 접근","로그인 유도 UX","이력서 등록 판단","지원 버튼 분기"]
+
+Spec: "매력 기업 섹션을 홈에 추가. A/B 테스트 쿠키 30일. 대조군은 기존 홈."
+출력: ["매력 기업 선정","섹션 노출 순서","A/B 쿠키 유지","대조군 처리"]`;
+
+async function extractAreasWithHaiku(specText: string): Promise<string[]> {
+  if (!process.env.ANTHROPIC_API_KEY) return [];
+  const trimmed = specText.length > 8000 ? specText.slice(0, 8000) : specText;
   try {
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: auth, Accept: "application/json" },
-      signal: controller.signal,
+    const t0 = Date.now();
+    const resp = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 300,
+      system: HAIKU_AREA_SYSTEM,
+      messages: [{ role: "user", content: `아래 Spec이 건드리는 영역을 JSON 배열로만 출력해라.\n\n${trimmed}` }],
     });
-    if (!res.ok) {
-      console.error(`[confluence] search failed: ${res.status}`);
+    const textBlock = resp.content.find((b) => b.type === "text");
+    const text = textBlock && "text" in textBlock ? textBlock.text : "";
+    const jsonMatch = text.match(/\[[\s\S]*?\]/);
+    if (!jsonMatch) {
+      console.warn("[haiku-1] JSON 파싱 실패:", text.slice(0, 200));
       return [];
     }
-    const data: any = await res.json();
-    const hits: ConfluenceHit[] = (data.results ?? []).slice(0, limit).map((r: any) => {
-      const webui = r.content?._links?.webui ?? r._links?.webui ?? "";
-      const rawExcerpt = typeof r.excerpt === "string" ? r.excerpt : "";
-      const excerpt = rawExcerpt.replace(/@@@hl@@@/g, "").replace(/@@@endhl@@@/g, "").trim();
-      return {
-        id: r.content?.id ?? "",
-        title: r.title ?? r.content?.title ?? "",
-        url: webui ? `${base}${webui}` : "",
-        excerpt,
-      };
-    });
-    console.log(`[confluence] 검색: keywords=[${keywords.join(",")}] → ${hits.length}건`);
-    return hits;
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(parsed)) return [];
+    const areas = parsed
+      .filter((x: unknown) => typeof x === "string")
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length >= 2 && s.length <= 30)
+      .slice(0, 5);
+    const u = resp.usage as any;
+    console.log(`[haiku-1] ${Date.now() - t0}ms | in:${u?.input_tokens} out:${u?.output_tokens} | areas: ${JSON.stringify(areas)}`);
+    return areas;
   } catch (err: any) {
-    const isTimeout = err.name === "AbortError";
-    console.error(`[confluence] ${isTimeout ? "TIMEOUT" : "ERROR"}:`, err.message);
+    console.error("[haiku-1] ERROR:", err.message);
     return [];
-  } finally {
-    clearTimeout(timer);
   }
 }
 
-function formatConfluenceContext(hits: ConfluenceHit[]): string {
-  if (hits.length === 0) return "";
-  const items = hits.map((h, i) =>
-    `${i + 1}. ${h.title}\n   URL: ${h.url}\n   ${h.excerpt}`
-  ).join("\n\n");
-  return `[참고: Confluence 관련 문서 ${hits.length}건 — 아래 정책/기획이 존재하므로 이를 반영해 분석해주세요]\n\n${items}`;
+// ── 2단계: 영역별 병렬 Confluence 검색 + dedupe ──
+type Candidate = { id: string; title: string; url: string; excerpt: string; matchedAreas: string[]; lastUpdated: string };
+
+// lastUpdated ISO → "2019-04", "2024-09" 등 표시용 YYYY-MM 추출 (정렬/랭킹 단순화)
+function toYearMonth(iso: string): string {
+  if (!iso || iso.length < 7) return "미상";
+  return iso.slice(0, 7);
+}
+
+async function searchConfluenceBroad(areas: string[], env: ConfluenceEnv, perArea = 5): Promise<Candidate[]> {
+  const spaceClause = env.spaceKeys.length === 1
+    ? `space = "${env.spaceKeys[0]}"`
+    : `space in (${env.spaceKeys.map((k) => `"${k}"`).join(",")})`;
+  const ancestorClause = env.rootPageId ? ` AND ancestor = ${env.rootPageId}` : "";
+
+  const runOne = async (area: string): Promise<{ area: string; results: any[] }> => {
+    const cql = `${spaceClause}${ancestorClause} AND type = page AND text ~ "${area.replace(/"/g, '\\"')}"`;
+    const url = new URL(`${env.base}/rest/api/search`);
+    url.searchParams.set("cql", cql);
+    url.searchParams.set("limit", String(perArea));
+    url.searchParams.set("expand", "content.version");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch(url.toString(), { headers: { Authorization: env.auth, Accept: "application/json" }, signal: controller.signal });
+      if (!res.ok) return { area, results: [] };
+      const data: any = await res.json();
+      return { area, results: data.results ?? [] };
+    } catch {
+      return { area, results: [] };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const t0 = Date.now();
+  const allResults = await Promise.all(areas.map(runOne));
+  const byId = new Map<string, Candidate>();
+  for (const { area, results } of allResults) {
+    for (const r of results) {
+      const id = r.content?.id ?? "";
+      if (!id) continue;
+      const webui = r.content?._links?.webui ?? r._links?.webui ?? "";
+      const rawExcerpt = typeof r.excerpt === "string" ? r.excerpt : "";
+      const excerpt = rawExcerpt.replace(/@@@hl@@@/g, "").replace(/@@@endhl@@@/g, "").trim();
+      const iso = r.lastModified ?? r.content?.version?.when ?? "";
+      const lastUpdated = toYearMonth(iso);
+      const existing = byId.get(id);
+      if (existing) {
+        if (!existing.matchedAreas.includes(area)) existing.matchedAreas.push(area);
+      } else {
+        byId.set(id, {
+          id,
+          title: r.title ?? r.content?.title ?? "",
+          url: webui ? `${env.base}${webui}` : "",
+          excerpt,
+          matchedAreas: [area],
+          lastUpdated,
+        });
+      }
+    }
+  }
+  const candidates = [...byId.values()];
+  console.log(`[confluence-broad] ${Date.now() - t0}ms | ${areas.length}영역 × ${perArea} → ${candidates.length}후보 (dedupe)`);
+  return candidates;
+}
+
+// ── 3단계: Haiku-2로 후보 분류 + 랭킹 ──
+const HAIKU_FILTER_SYSTEM = `당신은 문서 큐레이터다. 입력으로 주어진 현재 Spec과 Confluence 후보 문서 목록(제목+excerpt+수정일)을 보고, **선행 정책/결정 비교**에 쓸 만한 문서를 고른다.
+
+**평가 기준:**
+- 각 후보에 대해 3가지 판정:
+  - "origin": 이 문서가 **현재 Spec의 원본/복제본**으로 보임 (제목·내용이 거의 동일). 비교 대상 아니므로 **제외**.
+  - "relevant": 현재 Spec이 다루는 영역에 대해 **과거 결정·정책·가이드**를 담고 있음. 관련성 점수 1~10 부여.
+  - "noise": 회의록, 관련 없는 기획, 로드맵, 회고 등. **제외**.
+
+**신선도(최근 수정일) 반영:**
+- 2년 이내 수정: 기본 점수 유지
+- 2~4년 전 수정: -1~-2점 감점 (이미 지났을 수 있음)
+- 4년 이상 전 수정: **강한 감점 (-3점 이상)**. 해당 문서가 **확립된 표준/규칙**으로 보일 때만 남기고, 그 외엔 noise로 판정.
+- 제목에 "[실험 후보]", "실험중", "(YYYY.MM)" 등 시점 마커가 있고 오래됐으면 더 적극적으로 noise 분류.
+
+**출력 규칙:**
+- JSON 객체만. 설명 금지.
+- 형식: { "selected": [{ "idx": 숫자, "score": 1~10, "reason": "짧은 한 줄 (날짜 근거 포함)" }], "excluded_origin": [idx...], "excluded_noise": [idx...] }
+- selected는 **score 내림차순, 최대 5개**. 없으면 빈 배열.
+- score 7 미만은 가급적 제외.`;
+
+type FilterResult = { selected: { idx: number; score: number; reason: string }[]; excluded_origin: number[]; excluded_noise: number[] };
+
+async function classifyAndRank(specText: string, candidates: Candidate[]): Promise<FilterResult | null> {
+  if (!process.env.ANTHROPIC_API_KEY || candidates.length === 0) return null;
+  const specSnippet = specText.length > 3000 ? specText.slice(0, 3000) : specText;
+  const now = new Date();
+  const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const candidateText = candidates.map((c, i) => `[${i}] ${c.title}\n    최근 수정: ${c.lastUpdated}\n    매칭영역: ${c.matchedAreas.join(", ")}\n    excerpt: ${c.excerpt.slice(0, 300)}`).join("\n\n");
+  const userMsg = `# 현재 시점: ${currentYm}\n\n# 현재 Spec (앞 3000자)\n${specSnippet}\n\n# Confluence 후보 (총 ${candidates.length}개)\n${candidateText}\n\n위 후보들을 origin/relevant/noise로 분류하고, **신선도도 반영해** relevant만 score 내림차순 최대 5개 선정해라. JSON 객체로만 출력.`;
+
+  try {
+    const t0 = Date.now();
+    const resp = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1200,
+      system: HAIKU_FILTER_SYSTEM,
+      messages: [{ role: "user", content: userMsg }],
+    });
+    const textBlock = resp.content.find((b) => b.type === "text");
+    const text = textBlock && "text" in textBlock ? textBlock.text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn("[haiku-2] JSON 파싱 실패:", text.slice(0, 200));
+      return null;
+    }
+    const parsed: FilterResult = JSON.parse(jsonMatch[0]);
+    const u = resp.usage as any;
+    console.log(`[haiku-2] ${Date.now() - t0}ms | in:${u?.input_tokens} out:${u?.output_tokens} | selected:${parsed.selected?.length ?? 0} origin:${parsed.excluded_origin?.length ?? 0} noise:${parsed.excluded_noise?.length ?? 0}`);
+    return parsed;
+  } catch (err: any) {
+    console.error("[haiku-2] ERROR:", err.message);
+    return null;
+  }
+}
+
+// ── 4단계: 본문 fetch + HTML strip ──
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|tr|td|th)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function fetchBodies(ids: string[], env: ConfluenceEnv, capChars = 5000): Promise<Map<string, string>> {
+  const fetchOne = async (id: string): Promise<[string, string]> => {
+    const url = `${env.base}/rest/api/content/${id}?expand=body.view`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch(url, { headers: { Authorization: env.auth, Accept: "application/json" }, signal: controller.signal });
+      if (!res.ok) return [id, ""];
+      const data: any = await res.json();
+      const html = data?.body?.view?.value ?? "";
+      const text = stripHtml(html);
+      return [id, text.length > capChars ? text.slice(0, capChars) + "\n... (본문 이후 생략)" : text];
+    } catch {
+      return [id, ""];
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const t0 = Date.now();
+  const pairs = await Promise.all(ids.map(fetchOne));
+  const map = new Map(pairs);
+  const totalChars = [...map.values()].reduce((s, v) => s + v.length, 0);
+  console.log(`[confluence-body] ${Date.now() - t0}ms | ${ids.length}건 fetch | 본문 ${totalChars}자`);
+  return map;
+}
+
+// ── 5단계: Haiku-3로 영역별 "입장" 추출 (batch) ──
+const HAIKU_POSITION_SYSTEM = `당신은 정책 문서 분석가다. 주어진 Confluence 본문이 **특정 영역들에 대해 어떤 입장을 취하는지**만 추출한다.
+
+**작업:**
+- 각 본문 × 각 영역 조합에 대해:
+  - 해당 본문에 그 영역에 대한 **구체적 결정/기준/정책**이 있으면 position 문자열로 요약 (1~2문장)
+  - 짧은 **원문 발췌** (quote, 100~300자) 첨부
+  - 없으면 position/quote 모두 null
+
+**규칙:**
+- JSON 객체만. 설명 금지.
+- 형식: { "docs": [{ "idx": 숫자, "findings": [{ "area": "영역명", "position": "...", "quote": "..." }] }] }
+- 한 본문에서 findings가 빈 배열이어도 OK (영역에 대해 아무 말 안 함 = 정상)
+- **추측 금지.** 본문에 없는 내용을 만들지 말라.`;
+
+type PositionFinding = { area: string; position: string; quote: string };
+type PositionResult = { docs: { idx: number; findings: PositionFinding[] }[] };
+
+async function extractPositions(areas: string[], selected: { candidate: Candidate; body: string }[]): Promise<PositionResult | null> {
+  if (!process.env.ANTHROPIC_API_KEY || selected.length === 0) return null;
+  const docsText = selected.map((s, i) => `[${i}] ${s.candidate.title}\n--- 본문 ---\n${s.body}\n--- 끝 ---`).join("\n\n");
+  const userMsg = `# 분석할 영역 (${areas.length}개)\n${areas.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n\n# 본문 (${selected.length}개)\n${docsText}\n\n각 본문이 각 영역에 대해 취하는 입장을 JSON 객체로만 출력해라.`;
+
+  try {
+    const t0 = Date.now();
+    const resp = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 3000,
+      system: HAIKU_POSITION_SYSTEM,
+      messages: [{ role: "user", content: userMsg }],
+    });
+    const textBlock = resp.content.find((b) => b.type === "text");
+    const text = textBlock && "text" in textBlock ? textBlock.text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn("[haiku-3] JSON 파싱 실패:", text.slice(0, 300));
+      return null;
+    }
+    const parsed: PositionResult = JSON.parse(jsonMatch[0]);
+    const u = resp.usage as any;
+    const totalFindings = parsed.docs?.reduce((s, d) => s + (d.findings?.length ?? 0), 0) ?? 0;
+    console.log(`[haiku-3] ${Date.now() - t0}ms | in:${u?.input_tokens} out:${u?.output_tokens} | findings: ${totalFindings}`);
+    return parsed;
+  } catch (err: any) {
+    console.error("[haiku-3] ERROR:", err.message);
+    return null;
+  }
+}
+
+// ── 6단계: 구조화 포맷으로 Sonnet 주입 ──
+function formatStructuredContext(
+  areas: string[],
+  selected: { candidate: Candidate; body: string }[],
+  positions: PositionResult,
+): string {
+  // 영역별로 findings 집계
+  type Finding = { title: string; url: string; position: string; quote: string; lastUpdated: string };
+  const byArea = new Map<string, Finding[]>();
+  for (const a of areas) byArea.set(a, []);
+  for (const doc of positions.docs ?? []) {
+    const src = selected[doc.idx];
+    if (!src) continue;
+    for (const f of doc.findings ?? []) {
+      if (!f.area || !f.position) continue;
+      const list = byArea.get(f.area) ?? [];
+      list.push({
+        title: src.candidate.title,
+        url: src.candidate.url,
+        position: f.position,
+        quote: f.quote ?? "",
+        lastUpdated: src.candidate.lastUpdated,
+      });
+      byArea.set(f.area, list);
+    }
+  }
+
+  // 오래된 문서 표시 (현재 시점 기준 2년 이상 전)
+  const now = new Date();
+  const cutoff2y = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
+  const isStale = (ym: string) => {
+    if (!ym || ym === "미상") return false;
+    const [y, m] = ym.split("-").map(Number);
+    if (!y || !m) return false;
+    return new Date(y, m - 1, 1) < cutoff2y;
+  };
+
+  const blocks: string[] = [];
+  for (const area of areas) {
+    const findings = byArea.get(area) ?? [];
+    if (findings.length === 0) {
+      blocks.push(`## 영역: ${area}\n- **Confluence 선행 결정: 없음** (검색 결과에 이 영역에 대한 구체적 정책/결정을 담은 문서 없음)`);
+    } else {
+      const items = findings.map((f) => {
+        const quote = f.quote ? `\n  - 원문 발췌: "${f.quote.replace(/\n+/g, " ").slice(0, 300)}"` : "";
+        const staleWarn = isStale(f.lastUpdated) ? ` ⚠️ **오래된 문서 — 현재 유효한 정책인지 DRI 확인 필요**` : "";
+        return `- [${f.title}](${f.url}) (최근 수정: ${f.lastUpdated})${staleWarn}\n  - 입장: ${f.position}${quote}`;
+      }).join("\n");
+      blocks.push(`## 영역: ${area}\n${items}`);
+    }
+  }
+
+  return `[참고: Confluence 선행 결정 비교 — ${areas.length}개 영역, ${selected.length}개 문서 분석]
+
+아래는 현재 Spec이 건드리는 각 영역에 대해, Confluence에서 발견한 **과거 결정/정책**이다. 당신의 작업:
+- **Spec 침묵 + Confluence 정책 있음** → "선행 정책 반영 누락" 플래그 (최우선)
+- **Spec 입장 ≠ Confluence 입장** → "정책 충돌" 플래그
+- **Spec과 일치** → 언급 생략 (이미 반영됨)
+
+**주의:** 문서에 "⚠️ 오래된 문서" 표시가 있으면 **현재 유효한 정책이라 단정하지 말고**, 플래그 문구에 "DRI 확인 필요"를 함께 명시해라. 오래됐지만 확립된 표준(예: 디자인 시스템, 브랜드 가이드)은 예외.
+
+${blocks.join("\n\n")}`;
+}
+
+// ── 7단계: orchestrator (전체 파이프라인 + fallback) ──
+async function gatherConfluenceContext(userText: string): Promise<string> {
+  const env = loadConfluenceEnv();
+  if (!env) {
+    console.warn("[confluence] 환경변수 누락 — 검색 건너뜀");
+    return "";
+  }
+
+  const pipelineT0 = Date.now();
+
+  // Step 1: 영역 추출
+  const areas = await extractAreasWithHaiku(userText);
+  if (areas.length === 0) {
+    return await legacyFallback(userText, env);
+  }
+
+  // Step 2: 병렬 검색
+  const candidates = await searchConfluenceBroad(areas, env, 5);
+  if (candidates.length === 0) {
+    console.log("[confluence] 후보 0건 — 주입 건너뜀");
+    return "";
+  }
+
+  // Step 3: 분류/랭킹
+  const filterResult = await classifyAndRank(userText, candidates);
+  if (!filterResult) return await legacyFallback(userText, env);
+
+  const pickedIdxs = (filterResult.selected ?? []).filter((s) => s.score >= 6).slice(0, 5).map((s) => s.idx);
+  const picked = pickedIdxs.map((i) => candidates[i]).filter(Boolean);
+  if (picked.length === 0) {
+    console.log("[confluence] filter 후 0건 (모두 origin/noise) — 주입 건너뜀");
+    return "";
+  }
+
+  // Step 4: 본문 fetch
+  const bodies = await fetchBodies(picked.map((p) => p.id), env, 5000);
+  const selected = picked.map((c) => ({ candidate: c, body: bodies.get(c.id) ?? "" })).filter((s) => s.body.length > 0);
+  if (selected.length === 0) return await legacyFallback(userText, env);
+
+  // Step 5: 입장 추출
+  const positions = await extractPositions(areas, selected);
+  if (!positions) return await legacyFallback(userText, env);
+
+  // Step 6: 포맷
+  const ctx = formatStructuredContext(areas, selected, positions);
+  console.log(`[confluence-pipeline] 총 ${Date.now() - pipelineT0}ms | 주입 ${ctx.length}자`);
+  return ctx;
+}
+
+// v1 스타일 fallback: 빈도 기반 키워드 → excerpt 주입
+async function legacyFallback(userText: string, env: ConfluenceEnv): Promise<string> {
+  console.log("[confluence] legacy fallback 발동");
+  const keywords = extractKeywords(userText, 5);
+  if (keywords.length === 0) return "";
+  const spaceClause = env.spaceKeys.length === 1 ? `space = "${env.spaceKeys[0]}"` : `space in (${env.spaceKeys.map((k) => `"${k}"`).join(",")})`;
+  const ancestorClause = env.rootPageId ? ` AND ancestor = ${env.rootPageId}` : "";
+  const textClause = keywords.map((k) => `text ~ "${k.replace(/"/g, '\\"')}"`).join(" OR ");
+  const cql = `${spaceClause}${ancestorClause} AND type = page AND (${textClause})`;
+  const url = new URL(`${env.base}/rest/api/search`);
+  url.searchParams.set("cql", cql);
+  url.searchParams.set("limit", "3");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url.toString(), { headers: { Authorization: env.auth, Accept: "application/json" }, signal: controller.signal });
+    if (!res.ok) return "";
+    const data: any = await res.json();
+    const items = (data.results ?? []).slice(0, 3).map((r: any, i: number) => {
+      const webui = r.content?._links?.webui ?? r._links?.webui ?? "";
+      const excerpt = (r.excerpt ?? "").replace(/@@@hl@@@/g, "").replace(/@@@endhl@@@/g, "").trim();
+      return `${i + 1}. ${r.title ?? ""}\n   URL: ${env.base}${webui}\n   ${excerpt}`;
+    }).join("\n\n");
+    return items ? `[참고: Confluence 관련 문서 (fallback)]\n\n${items}` : "";
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ── Ennoia API (레거시, 유지) ──
@@ -267,16 +643,15 @@ app.post("/api/chat/stream", async (req, res) => {
     return { role, content: m.content };
   });
 
-  // Confluence 컨텍스트 주입: 키워드 기반 검색 후 마지막 user 메시지에 추가
+  // Confluence 컨텍스트 주입 (Phase 3: 결정 비교 기반 파이프라인)
   if (includeConfluenceContext && apiMessages.length > 0) {
     const lastIdx = apiMessages.length - 1;
     const last = apiMessages[lastIdx];
     if (last?.role === "user" && typeof last.content === "string") {
-      const hits = await searchConfluence(last.content, 3);
-      const ctx = formatConfluenceContext(hits);
+      const ctx = await gatherConfluenceContext(last.content);
       if (ctx) {
         apiMessages[lastIdx] = { ...last, content: last.content + "\n\n---\n\n" + ctx };
-        console.log(`[confluence] 컨텍스트 주입: ${ctx.length}자 (${hits.length}건)`);
+        console.log(`[confluence] 컨텍스트 주입: ${ctx.length}자`);
       }
     }
   }

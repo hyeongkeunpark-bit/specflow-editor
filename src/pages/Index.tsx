@@ -385,7 +385,8 @@ const Index = () => {
 
   // ── [Use Case 분석] 버튼 → 일반 채팅으로 분석 요청 ──
   const handleEdgeCaseAnalysis = useCallback(() => {
-    handleSend("현재 Prototype과 Spec을 분석해서, 개발자/디자이너/QA가 구현·작업 중 Spec에 답이 없어서 막힐 수 있는 항목을 찾아줘. 이미 Spec이나 Prototype에서 처리된 항목은 제외. 각 항목에 맥락상 합리적인 처리 방안을 함께 제시해줘. 구현 디테일(debounce, 페이지네이션, 로딩 UI 등 개발자가 판단할 영역)은 제외. Prototype을 수정하지 마. 참고 Confluence 문서가 주입되어 있다면, 해당 정책/기획을 반영해서 누락된 항목과 충돌 지점을 짚어줘. 마지막에 '위 항목을 확인해주세요. 수정할 항목이 있으면 번호로 알려주시고, 없으면 위 항목을 Spec에 반영해달라고 해주세요.'라고 안내해줘.", undefined, { systemPromptMode: "none", includeDbContext: true, includeConfluenceContext: true });
+    // includeConfluenceContext: 현재 off (효과 검증 필요). 재활성화 시 true로 변경.
+    handleSend("현재 Prototype과 Spec을 분석해서, 개발자/디자이너/QA가 구현·작업 중 Spec에 답이 없어서 막힐 수 있는 항목을 찾아줘. 이미 Spec이나 Prototype에서 처리된 항목은 제외. 각 항목에 맥락상 합리적인 처리 방안을 함께 제시해줘. 구현 디테일(debounce, 페이지네이션, 로딩 UI 등 개발자가 판단할 영역)은 제외. Prototype을 수정하지 마. [참고: Confluence 선행 결정 비교] 블록이 주입되어 있다면, 각 영역에 대해 Spec 입장과 Confluence 입장을 비교해서 (1) Spec이 침묵했는데 Confluence에 정책이 있으면 '선행 정책 반영 누락'으로 최우선 플래그, (2) Spec과 Confluence가 충돌하면 '정책 충돌'로 플래그, (3) 일치하면 생략해줘. 각 플래그에는 Confluence 문서 제목과 URL을 함께 명시해줘. 마지막에 '위 항목을 확인해주세요. 수정할 항목이 있으면 번호로 알려주시고, 없으면 위 항목을 Spec에 반영해달라고 해주세요.'라고 안내해줘.", undefined, { systemPromptMode: "none", includeDbContext: true, includeConfluenceContext: false });
   }, [handleSend]);
 
   // ── Spec 직접 편집 콜백 ──
