@@ -86,6 +86,103 @@ function loadDbKnowledge(): string {
   }
 }
 
+// ── Confluence 검색 (관련 정책/기획 문서 참조) ──
+
+const KO_STOPWORDS = new Set([
+  "있다","없다","하는","되는","대한","기능","페이지","화면","사용자","유저","서비스",
+  "기획","정책","다음","이후","이전","해당","또는","그리고","있음","없음","필요","가능",
+  "경우","내용","설정","제공","표시","노출","버튼","영역","입력","선택","확인","클릭",
+  "추가","삭제","변경","수정","상태","정보","대한","위한","통해","관련","항목","기본",
+]);
+
+function extractKeywords(text: string, topN = 5): string[] {
+  if (!text) return [];
+  const tokens = text.match(/[가-힣]{2,10}|[A-Za-z]{3,15}/g) ?? [];
+  const freq = new Map<string, number>();
+  for (const raw of tokens) {
+    const tok = raw.toLowerCase();
+    if (KO_STOPWORDS.has(raw)) continue;
+    if (/^[a-z]+$/.test(tok) && tok.length < 4) continue;
+    freq.set(tok, (freq.get(tok) ?? 0) + 1);
+  }
+  return [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN)
+    .map(([w]) => w);
+}
+
+type ConfluenceHit = { id: string; title: string; url: string; excerpt: string };
+
+async function searchConfluence(specText: string, limit = 3): Promise<ConfluenceHit[]> {
+  const email = process.env.ATLASSIAN_EMAIL;
+  const token = process.env.ATLASSIAN_API_TOKEN;
+  const base = process.env.ATLASSIAN_BASE_URL;
+  const spaceKeys = (process.env.CONFLUENCE_SPACE_KEYS ?? "")
+    .split(",").map((s) => s.trim()).filter(Boolean);
+  const rootPageId = (process.env.CONFLUENCE_ROOT_PAGE_ID ?? "").trim();
+
+  if (!email || !token || !base || spaceKeys.length === 0) {
+    console.warn("[confluence] 환경변수 누락 — 검색 건너뜀");
+    return [];
+  }
+
+  const keywords = extractKeywords(specText, 5);
+  if (keywords.length === 0) return [];
+
+  const spaceClause = spaceKeys.length === 1
+    ? `space = "${spaceKeys[0]}"`
+    : `space in (${spaceKeys.map((k) => `"${k}"`).join(",")})`;
+  const ancestorClause = rootPageId ? ` AND ancestor = ${rootPageId}` : "";
+  const textClause = keywords.map((k) => `text ~ "${k.replace(/"/g, '\\"')}"`).join(" OR ");
+  const cql = `${spaceClause}${ancestorClause} AND type = page AND (${textClause})`;
+
+  const auth = "Basic " + Buffer.from(`${email}:${token}`).toString("base64");
+  const url = new URL(`${base}/rest/api/search`);
+  url.searchParams.set("cql", cql);
+  url.searchParams.set("limit", String(limit));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: auth, Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      console.error(`[confluence] search failed: ${res.status}`);
+      return [];
+    }
+    const data: any = await res.json();
+    const hits: ConfluenceHit[] = (data.results ?? []).slice(0, limit).map((r: any) => {
+      const webui = r.content?._links?.webui ?? r._links?.webui ?? "";
+      const rawExcerpt = typeof r.excerpt === "string" ? r.excerpt : "";
+      const excerpt = rawExcerpt.replace(/@@@hl@@@/g, "").replace(/@@@endhl@@@/g, "").trim();
+      return {
+        id: r.content?.id ?? "",
+        title: r.title ?? r.content?.title ?? "",
+        url: webui ? `${base}${webui}` : "",
+        excerpt,
+      };
+    });
+    console.log(`[confluence] 검색: keywords=[${keywords.join(",")}] → ${hits.length}건`);
+    return hits;
+  } catch (err: any) {
+    const isTimeout = err.name === "AbortError";
+    console.error(`[confluence] ${isTimeout ? "TIMEOUT" : "ERROR"}:`, err.message);
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function formatConfluenceContext(hits: ConfluenceHit[]): string {
+  if (hits.length === 0) return "";
+  const items = hits.map((h, i) =>
+    `${i + 1}. ${h.title}\n   URL: ${h.url}\n   ${h.excerpt}`
+  ).join("\n\n");
+  return `[참고: Confluence 관련 문서 ${hits.length}건 — 아래 정책/기획이 존재하므로 이를 반영해 분석해주세요]\n\n${items}`;
+}
+
 // ── Ennoia API (레거시, 유지) ──
 
 app.post("/api/chat", async (req, res) => {
@@ -128,11 +225,12 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode, model: reqModel, includeDbContext } = req.body as {
+  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
     model?: string;
     includeDbContext?: boolean;
+    includeConfluenceContext?: boolean;
   };
 
   if (!messages || messages.length === 0) {
@@ -168,6 +266,20 @@ app.post("/api/chat/stream", async (req, res) => {
     }
     return { role, content: m.content };
   });
+
+  // Confluence 컨텍스트 주입: 키워드 기반 검색 후 마지막 user 메시지에 추가
+  if (includeConfluenceContext && apiMessages.length > 0) {
+    const lastIdx = apiMessages.length - 1;
+    const last = apiMessages[lastIdx];
+    if (last?.role === "user" && typeof last.content === "string") {
+      const hits = await searchConfluence(last.content, 3);
+      const ctx = formatConfluenceContext(hits);
+      if (ctx) {
+        apiMessages[lastIdx] = { ...last, content: last.content + "\n\n---\n\n" + ctx };
+        console.log(`[confluence] 컨텍스트 주입: ${ctx.length}자 (${hits.length}건)`);
+      }
+    }
+  }
 
   try {
     const stream = anthropic.messages.stream({
