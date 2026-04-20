@@ -411,7 +411,7 @@ const ChatPanel = ({
           ) : (
             <button
               onClick={handleSend}
-              disabled={!input.trim()}
+              disabled={!input.trim() && pendingImages.length === 0 && pendingTextFiles.length === 0}
               className="p-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
             >
               <Send className="w-4 h-4" />

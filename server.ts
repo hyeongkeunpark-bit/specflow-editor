@@ -19,8 +19,10 @@ const ALLOWED_MODELS = new Set(["claude-sonnet-4-6", "claude-opus-4-6"]);
 app.use(express.json({ limit: "5mb" }));
 
 // ── Claude API 클라이언트 ──
+// extended-cache-ttl-2025-04-11: Spec 블록에 1h TTL 캐시 적용용 beta 헤더
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
+  defaultHeaders: { "anthropic-beta": "extended-cache-ttl-2025-04-11" },
 });
 
 // ── 시스템 프롬프트 + 지식 파일 로드 ──
@@ -103,7 +105,6 @@ app.post("/api/chat", async (req, res) => {
     const response = await anthropic.messages.create({
       model: useModel,
       max_tokens: 64000,
-      cache_control: { type: "ephemeral" },
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: messages.map((m) => {
         const role = m.role === "assistant" ? "assistant" as const : "user" as const;
@@ -116,7 +117,7 @@ app.post("/api/chat", async (req, res) => {
     const text = textBlock && "text" in textBlock ? textBlock.text : "";
 
     const u = response.usage as any;
-    console.log(`[api/chat] Response: ${text.length} chars | input: ${u?.input_tokens} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens}`);
+    console.log(`[api/chat] Response: ${text.length} chars | input: ${u?.input_tokens} (cache write: ${u?.cache_creation_input_tokens ?? 0}, read: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens}`);
     return res.status(200).json({ text });
   } catch (error: any) {
     console.error("[api/chat] Error:", error.message);
@@ -172,7 +173,6 @@ app.post("/api/chat/stream", async (req, res) => {
     const stream = anthropic.messages.stream({
       model: useModel,
       max_tokens: 64000,
-      cache_control: { type: "ephemeral" },
       system,
       messages: apiMessages,
     });
@@ -197,7 +197,7 @@ app.post("/api/chat/stream", async (req, res) => {
       const stopReason = finalMsg?.stop_reason ?? stream.currentMessageSnapshot?.stop_reason ?? "unknown";
       const duration = Math.round((Date.now() - startTime) / 1000);
       console.log(`[api/chat/stream] duration: ${duration}s | stop_reason: ${stopReason} | output_chars: ${fullResponse.length}`);
-      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cached: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
+      console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cache write: ${u?.cache_creation_input_tokens ?? 0}, read: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
       if (duration > 120) console.warn(`[api/chat/stream] ⚠️ SLOW: ${duration}s`);
       res.write("data: [DONE]\n\n");
       res.end();

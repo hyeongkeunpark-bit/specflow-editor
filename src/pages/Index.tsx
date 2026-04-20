@@ -55,12 +55,6 @@ const Index = () => {
     sharePrototype(activeSession.htmlContent, activeSessionId).catch(() => {});
   }, [activeSession.htmlContent, activeSession.shareUrl, activeSessionId]);
 
-  // ── 세션 전환 시 dirty 플래그 재설정 ──
-  useEffect(() => {
-    specDirtyRef.current = !!activeSession.specContent;
-    htmlDirtyRef.current = !!activeSession.htmlContent;
-  }, [activeSessionId]);
-
   // ── 스트리밍 취소용 AbortController ──
   const abortRef = useRef<AbortController | null>(null);
   const handleCancel = useCallback(() => {
@@ -69,16 +63,16 @@ const Index = () => {
     setIsLoading(false);
   }, []);
 
-  // ── dirty 플래그: 변경 후 다음 전송 시 1회 포함 ──
-  // 기존 컨텐츠가 있으면 첫 메시지에 포함되도록 true로 초기화
-  const specDirtyRef = useRef(!!activeSession.specContent);
-  const htmlDirtyRef = useRef(!!activeSession.htmlContent);
-
   // ── Prototype 변경 이력 (Spec 업데이트 시 전달용) ──
   const protoChangeLogRef = useRef<string[]>([]);
 
   // ── iframe 런타임 에러 ──
   const iframeErrorsRef = useRef<IframeError[]>([]);
+  // 히스토리 복원 직후 해당 세션의 에러 자동 수정을 억제 — 유저가 실제로 수정할 때까지 유지
+  const suppressAutoFixInSessionsRef = useRef<Set<string>>(new Set());
+  // 세션별로 AI에게 한번이라도 노출된 에러 signature — 동일 에러 재주입 방지
+  // 키 포맷: `${sessionId}:${errorMessage}`
+  const processedErrorsRef = useRef<Set<string>>(new Set());
   const handleIframeErrors = useCallback((errors: IframeError[]) => {
     iframeErrorsRef.current = errors;
     if (errors.length > 0) {
@@ -89,7 +83,6 @@ const Index = () => {
         if (patch) {
           console.log("[autoFix] 클라이언트 패치 성공:", patch.applied.join(", "));
           setHtmlContent(patch.html);
-          htmlDirtyRef.current = true;
           iframeErrorsRef.current = [];
         }
       }
@@ -148,11 +141,9 @@ const Index = () => {
     setMessages((prev) => [...prev, { id: aiMsgId, role: "ai" as const, content: "" }]);
     rawStreamRef.current = "";
 
-    // Spec/HTML 모두 dirty일 때만 전송 — 변경 없으면 보내지 않아 토큰 절감
-    const sendSpec = specDirtyRef.current ? activeSession.specContent || undefined : undefined;
-    const sendHtml = htmlDirtyRef.current ? activeSession.htmlContent || undefined : undefined;
-    if (sendSpec) specDirtyRef.current = false;
-    if (sendHtml) htmlDirtyRef.current = false;
+    // 매 턴 current Spec/HTML을 전송 (buildMessages가 cache_control로 캐싱)
+    const sendSpec = activeSession.specContent || undefined;
+    const sendHtml = activeSession.htmlContent || undefined;
 
     // AI에 전송할 사용자 메시지: 파일 내용 + 에러 컨텍스트 + 사용자 텍스트
     let apiUserMessage = text;
@@ -165,8 +156,19 @@ const Index = () => {
     }
 
     // 에러가 있으면 자동으로 에러 컨텍스트 첨부 (Bolt 방식)
-    if (iframeErrorsRef.current.length > 0 && activeSession.htmlContent) {
-      const errorContext = formatErrorsForAI(iframeErrorsRef.current, activeSession.htmlContent);
+    // 억제 조건:
+    // 1. 히스토리 복원 직후 세션 (유저 실제 수정까지)
+    // 2. 이미 AI에게 노출된 에러 signature (매 턴 재주입 방지)
+    const autoFixAllowed = !suppressAutoFixInSessionsRef.current.has(activeSessionId);
+    const newErrors = iframeErrorsRef.current.filter(
+      (e) => !processedErrorsRef.current.has(`${activeSessionId}:${e.message}`),
+    );
+    // 현재 모든 에러를 "처리됨"으로 마킹 (suppress 여부 무관 — 재주입 원천 차단)
+    iframeErrorsRef.current.forEach((e) =>
+      processedErrorsRef.current.add(`${activeSessionId}:${e.message}`),
+    );
+    if (autoFixAllowed && newErrors.length > 0 && activeSession.htmlContent) {
+      const errorContext = formatErrorsForAI(newErrors, activeSession.htmlContent);
       if (errorContext) {
         apiUserMessage = `${apiUserMessage}\n\n${errorContext}`;
       }
@@ -196,17 +198,21 @@ const Index = () => {
       const response = await sendMessage(apiUserMessage, activeSession.messages, options);
 
       // 스트리밍 완료 후: chatText로 AI 메시지 정리
+      // AI가 설명 없이 delta/html/spec만 출력한 경우 → 빈 AI 메시지 제거
+      // ("🖥️ Prototype 업데이트됨" / "📝 Spec 업데이트됨" 시스템 메시지가 대신 알림)
       const chatContent = response.chatText.trim();
-      setMessages((prev) =>
-        prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
-      );
+      setMessages((prev) => {
+        if (!chatContent && (response.html || response.spec)) {
+          return prev.filter((m) => m.id !== aiMsgId);
+        }
+        return prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m));
+      });
 
       // ── Spec 추출 결과 처리 ──
       if (response.spec) {
         if (!activeSession.specContent) {
           // 초기 생성
           setSpecContent(response.spec);
-          specDirtyRef.current = true;
           setSnapshots((prev) => [
             ...prev,
             {
@@ -229,7 +235,6 @@ const Index = () => {
 
           if (specChanged) {
             setSpecContent(merged);
-            specDirtyRef.current = true;
             setSnapshots((prev) => [
               ...prev,
               {
@@ -251,7 +256,8 @@ const Index = () => {
       // ── HTML 추출 결과 처리 ──
       if (response.html) {
         setHtmlContent(response.html);
-        htmlDirtyRef.current = true;
+        // 유저가 실제 수정을 했으므로 복원 직후 억제 해제
+        suppressAutoFixInSessionsRef.current.delete(activeSessionId);
         // Prototype 변경 이력에 추가
         protoChangeLogRef.current.push(text);
         setSnapshots((prev) => [
@@ -286,8 +292,6 @@ const Index = () => {
           prev.map((m) => (m.id === aiMsgId ? { ...m, content: errContent } : m)),
         );
       }
-      // 전송 실패 시 dirty 복원
-      if (sendSpec) specDirtyRef.current = true;
     } finally {
       clearTimeout(timeoutId);
       abortRef.current = null;
@@ -344,7 +348,6 @@ const Index = () => {
           const merged = mergeSpec(activeSession.specContent, response.spec);
           setSpecContent(merged);
         }
-        specDirtyRef.current = true;
 
         setSnapshots((prev) => [
           ...prev,
@@ -388,7 +391,6 @@ const Index = () => {
   // ── Spec 직접 편집 콜백 ──
   const handleSpecEdit = useCallback((newContent: string) => {
     setSpecContent(newContent);
-    specDirtyRef.current = true;
     if (activeSession.htmlContent) setProtoNeedsSync(true);
   }, [setSpecContent, activeSession.htmlContent]);
 
@@ -407,7 +409,28 @@ const Index = () => {
     ]);
     rawStreamRef.current = "";
 
-    const instruction = `[Spec 일관성 검토]\n\n[현재 Spec 전문]\n${activeSession.specContent}\n\nSpec 내부에서 같은 정책, 수치, 규칙이 여러 섹션에 언급되는 경우, 불일치가 없는지 확인해줘. 불일치가 있으면 어디가 어떻게 다른지 알려주고, 바로 수정해줘. 수정된 섹션을 <spec> 태그로 출력해줘. 불일치가 없으면 "Spec 내부에 불일치가 없습니다."라고 안내해줘.`;
+    const instruction = `[Spec 일관성 검토 요청]
+
+[현재 Spec 전문]
+${activeSession.specContent}
+
+Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 언급되는 불일치를 찾아.
+
+**중요: 이 턴에서는 Spec을 수정하지 마. <spec> 태그 출력 금지.**
+
+각 불일치에 대해:
+1. 어느 섹션 vs 어느 섹션이 어떻게 다른지 구체적으로 인용.
+2. 유저에게 "어느 방향으로 통일할까요?"라고 질문. 가능하면 선택지 제시:
+   (A) outlier 쪽으로 통일 (= 유저가 최근 직접 편집했을 가능성이 높은 쪽)
+   (B) 다수 쪽으로 통일
+   (C) 수정하지 않고 그대로 유지
+   (D) 다른 방향 (유저가 구체적으로 지시)
+
+여러 불일치가 있으면 번호를 매겨서 각각 선택할 수 있도록 해.
+
+유저가 다음 메시지에서 방향을 지시하면, 그때 일반 채팅 흐름에서 실제 수정이 진행됩니다.
+
+불일치가 없으면 "Spec 내부에 불일치가 없습니다."라고만 안내하고 끝내.`;
 
     const options: SendOptions = {
       systemPromptMode: "none",
@@ -435,7 +458,6 @@ const Index = () => {
       if (response.spec) {
         const merged = mergeSpec(activeSession.specContent, response.spec);
         setSpecContent(merged);
-        specDirtyRef.current = true;
         setMessages((prev) => [
           ...prev,
           { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 일관성 수정 완료" },
@@ -495,7 +517,6 @@ const Index = () => {
 
       if (response.html) {
         setHtmlContent(response.html);
-        htmlDirtyRef.current = true;
         protoChangeLogRef.current.push("Spec 기반 Prototype 업데이트");
         setSnapshots((prev) => [
           ...prev,
@@ -530,8 +551,8 @@ const Index = () => {
     const snap = activeSession.snapshots[index];
     setSpecContent(snap.spec);
     setHtmlContent(snap.html);
-    if (snap.spec !== activeSession.specContent) specDirtyRef.current = true;
-    if (snap.html !== activeSession.htmlContent) htmlDirtyRef.current = true;
+    // 복원 직후 iframe이 에러를 보고해도 AI 자동 수정을 억제 (유저 실제 수정 전까지)
+    suppressAutoFixInSessionsRef.current.add(activeSessionId);
     // 복원 시 동기화 플래그 리셋 — 복원된 상태는 일치한 시점의 스냅샷
     setSpecNeedsSync(false);
     setProtoNeedsSync(false);
@@ -579,7 +600,7 @@ const Index = () => {
   }, [activeSession.messages]);
 
   const sidePanelContent = activePanel && (
-    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} onConsistencyCheck={handleConsistencyCheck} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onLoadSpec={(text) => { setSpecContent(text); specDirtyRef.current = true; }} onClose={() => setActivePanel(null)} /> :
+    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} onConsistencyCheck={handleConsistencyCheck} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onLoadSpec={(text) => { setSpecContent(text); }} onClose={() => setActivePanel(null)} /> :
     activePanel === "code" ? <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} /> :
     activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onScrollToMessage={handleScrollToMessage} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
     null
@@ -619,7 +640,7 @@ const Index = () => {
               needsSync={protoNeedsSync}
               onSyncToPrototype={handleProtoFromSpec}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
-              onLoadHtml={(html) => { setHtmlContent(html); htmlDirtyRef.current = true; }}
+              onLoadHtml={(html) => { setHtmlContent(html); }}
               onErrors={handleIframeErrors}
             />
           </ResizablePanel>

@@ -30,9 +30,9 @@ const HISTORY_MSG_TRUNCATE_TO = 1500;
 
 /** 전송 시 포함할 컨텍스트 옵션 */
 export interface SendOptions {
-  /** 현재 Spec 전문 (dirty 상태일 때만 전달) */
+  /** 현재 Spec 전문 (있으면 매 턴 user 메시지 앞에 주입) */
   specContent?: string;
-  /** 현재 Prototype HTML (dirty 상태일 때만 전달) */
+  /** 현재 Prototype HTML (있으면 매 턴 user 메시지 앞에 주입) */
   htmlContent?: string;
   /** Spec 문서 업데이트 모드 — Spec + HTML + 변경이력을 함께 전송 */
   specUpdateMode?: {
@@ -66,8 +66,11 @@ export interface SendOptions {
  * - system 메시지 제외
  * - AI 응답에서 <spec> 태그 내용 제거 (현재 Spec을 별도로 보내므로 중복 방지)
  * - 최근 MAX_HISTORY개만 유지
+ * - 일반 모드에서 current Spec/HTML을 매 턴 user 메시지 앞에 prepend
+ *
+ * 테스트용으로 export됨 (src/lib/__tests__/buildMessages.test.ts)
  */
-function buildMessages(
+export function buildMessages(
   history: ChatMessage[],
   currentMessage: string,
   options: Omit<SendOptions, "onToken"> = {},
@@ -148,18 +151,20 @@ function buildMessages(
     ];
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else {
-    // 일반 채팅 모드: dirty 상태인 컨텍스트만 포함
+    // 일반 채팅 모드: current Spec/HTML을 매 턴 user 메시지 앞에 주입
+    //
+    // cache_control 미적용 이유: Anthropic 캐시는 prefix exact-match인데,
+    // 매 턴 히스토리가 늘어나므로 Spec/HTML block의 prefix 바이트가 달라져 cache 재사용 불가.
+    // 히스토리 스트립(L91-106)을 유지하는 한 근본적으로 재사용 불가능 — 오히려 cache_write 프리미엄(1.25x)만 낭비.
+    // system 프롬프트 캐시(server.ts에서 1h TTL)만 유효하게 동작.
     const contextParts: string[] = [];
-    if (specContent) {
-      contextParts.push(`[현재 Spec 전문]\n${specContent}`);
-    }
-    if (htmlContent) {
-      contextParts.push(`[현재 Prototype HTML]\n${htmlContent}`);
-    }
-    let userText = currentMessage;
-    if (contextParts.length > 0) {
-      userText = contextParts.join("\n\n") + `\n\n[요청]\n${currentMessage}`;
-    }
+    if (specContent) contextParts.push(`[현재 Spec 전문]\n${specContent}`);
+    if (htmlContent) contextParts.push(`[현재 Prototype HTML]\n${htmlContent}`);
+
+    const hasContext = contextParts.length > 0;
+    const userText = hasContext
+      ? contextParts.join("\n\n") + `\n\n[요청]\n${currentMessage}`
+      : currentMessage;
 
     // 이미지가 있으면 multimodal content block으로 구성 (라벨 포함)
     if (images && images.length > 0) {
@@ -167,7 +172,10 @@ function buildMessages(
       images.forEach((img, idx) => {
         const base64Data = img.base64.includes(",") ? img.base64.split(",")[1] : img.base64;
         contentBlocks.push({ type: "text", text: `[첨부 이미지 ${idx + 1}]` });
-        contentBlocks.push({ type: "image", source: { type: "base64", media_type: img.mediaType || "image/jpeg", data: base64Data } });
+        contentBlocks.push({
+          type: "image",
+          source: { type: "base64", media_type: img.mediaType || "image/jpeg", data: base64Data },
+        });
       });
       contentBlocks.push({ type: "text", text: userText });
       messages.push({ role: "user", content: contentBlocks });
