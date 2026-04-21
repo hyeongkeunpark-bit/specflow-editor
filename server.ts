@@ -114,6 +114,7 @@ type MetricPayload = {
   endpoint?: string;
   include_db?: boolean;
   session_hash?: string;
+  client_hash?: string;
 };
 
 async function pushMetric(payload: MetricPayload): Promise<void> {
@@ -866,13 +867,14 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext, sessionId } = req.body as {
+  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext, sessionId, clientId } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
     model?: string;
     includeDbContext?: boolean;
     includeConfluenceContext?: boolean;
     sessionId?: string;
+    clientId?: string;
   };
 
   if (!messages || messages.length === 0) {
@@ -979,6 +981,7 @@ app.post("/api/chat/stream", async (req, res) => {
         endpoint: "chat/stream",
         include_db: !!includeDbContext,
         session_hash: hashSession(sessionId),
+        client_hash: hashSession(clientId),
       });
       res.write("data: [DONE]\n\n");
       res.end();
@@ -1019,7 +1022,7 @@ const FIX_ERRORS_SYSTEM_PROMPT = `당신은 HTML 프로토타입의 JavaScript �
 - localStorage SecurityError (sandbox) → try-catch로 감싸기`;
 
 app.post("/api/chat/fix-errors", async (req, res) => {
-  const { html, errors, sessionId } = req.body as { html: string; errors: string; sessionId?: string };
+  const { html, errors, sessionId, clientId } = req.body as { html: string; errors: string; sessionId?: string; clientId?: string };
 
   if (!html || !errors) {
     return res.status(400).json({ error: "html and errors are required" });
@@ -1077,6 +1080,7 @@ app.post("/api/chat/fix-errors", async (req, res) => {
         endpoint: "chat/fix-errors",
         include_db: false,
         session_hash: hashSession(sessionId),
+        client_hash: hashSession(clientId),
       });
       res.write("data: [DONE]\n\n");
       res.end();

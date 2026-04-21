@@ -11,6 +11,7 @@ import HistoryPanel from "@/components/HistoryPanel";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { sendMessage, sharePrototype } from "@/lib/api";
 import type { SendOptions } from "@/lib/api";
+import { getClientId } from "@/lib/clientId";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { formatErrorsForAI, tryClientPatch, type IframeError } from "@/lib/iframeErrors";
@@ -182,6 +183,7 @@ const Index = () => {
       signal: controller.signal,
       model: localStorage.getItem("specbot_model") || undefined,
       sessionId: activeSessionId,
+      clientId: getClientId(),
 
       ...extraOptions,
       onToken: (token) => {
