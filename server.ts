@@ -33,6 +33,9 @@ function readFileWithLiteralPath(filename: string): string {
     "prompt-v4-prototype-first.md": path.join(__dirname, "prompt-v4-prototype-first.md"),
     "product-spec-v2-template.txt": path.join(__dirname, "product-spec-v2-template.txt"),
     "wanted-db-knowledge.md": path.join(__dirname, "wanted-db-knowledge.md"),
+    "wanted-db-catalog.md": path.join(__dirname, "wanted-db-catalog.md"),
+    "wanted-db-context.md": path.join(__dirname, "wanted-db-context.md"),
+    "wanted-db-index.json": path.join(__dirname, "wanted-db-index.json"),
   };
   const filePath = fileMap[filename];
   if (!filePath) throw new Error(`알 수 없는 파일: ${filename}`);
@@ -43,6 +46,9 @@ function readFileWithLiteralPath(filename: string): string {
 path.join(__dirname, "prompt-v4-prototype-first.md");
 path.join(__dirname, "product-spec-v2-template.txt");
 path.join(__dirname, "wanted-db-knowledge.md");
+path.join(__dirname, "wanted-db-catalog.md");
+path.join(__dirname, "wanted-db-context.md");
+path.join(__dirname, "wanted-db-index.json");
 
 function loadSystemPrompt(): string {
   let prompt = "";
@@ -84,6 +90,217 @@ function loadDbKnowledge(): string {
     console.warn("[db-knowledge] 파일 로드 실패:", (err as Error).message);
     return "";
   }
+}
+
+// ── DB 카탈로그/맥락 런타임 선별 주입 (Stage 2) ──
+//
+// 구조:
+//   wanted-db-index.json    → 테이블 메타 (Haiku 선별 input)
+//   wanted-db-catalog.md    → 스키마 블록 (테이블별 ### ` ` 섹션)
+//   wanted-db-context.md    → 운영 맥락 블록 (테이블별 # 📂 섹션)
+//
+// 서버 시작 시 파싱해서 메모리 Map에 캐싱.
+
+type DbIndexEntry = { id: string; dataset: string; name: string; category: string; summary: string; has_notes: boolean; column_count: number };
+type DbCache = {
+  index: DbIndexEntry[] | null;
+  catalogBlocks: Map<string, string>; // key: "dataset.name"
+  contextBlocks: Map<string, string>; // key: table name
+  loaded: boolean;
+};
+const dbCache: DbCache = { index: null, catalogBlocks: new Map(), contextBlocks: new Map(), loaded: false };
+
+function parseCatalogBlocks(md: string): Map<string, string> {
+  // catalog.md: "## 📦 \`{dataset}\` (N개 테이블)" → "### \`{table}\` " blocks
+  const blocks = new Map<string, string>();
+  const lines = md.split("\n");
+  let currentDataset = "";
+  let currentTable = "";
+  let buffer: string[] = [];
+
+  const flush = () => {
+    if (currentDataset && currentTable) {
+      const key = `${currentDataset}.${currentTable}`;
+      blocks.set(key, buffer.join("\n").trim());
+    }
+    buffer = [];
+  };
+
+  for (const line of lines) {
+    const dsMatch = line.match(/^## 📦 `([^`]+)`/);
+    if (dsMatch) {
+      flush();
+      currentDataset = dsMatch[1];
+      currentTable = "";
+      continue;
+    }
+    const tblMatch = line.match(/^### `([^`]+)`/);
+    if (tblMatch) {
+      flush();
+      currentTable = tblMatch[1];
+      buffer.push(line); // 헤더 포함
+      continue;
+    }
+    if (/^---\s*$/.test(line)) {
+      flush();
+      currentTable = "";
+      continue;
+    }
+    if (currentTable) buffer.push(line);
+  }
+  flush();
+  return blocks;
+}
+
+function parseContextBlocks(md: string): Map<string, string> {
+  // context.md: "# 📂 {table_name}" blocks
+  const blocks = new Map<string, string>();
+  const parts = md.split(/^# 📂 /m);
+  for (const part of parts.slice(1)) { // first part is header matter
+    const firstLineEnd = part.indexOf("\n");
+    const name = part.slice(0, firstLineEnd).trim();
+    let body = part.slice(firstLineEnd + 1).trim();
+    // 다음 섹션 시작 전까지만 (--- 구분선 처리)
+    const sepIdx = body.lastIndexOf("\n---\n");
+    if (sepIdx !== -1) body = body.slice(0, sepIdx).trim();
+    blocks.set(name, body);
+  }
+  return blocks;
+}
+
+function ensureDbCache(): void {
+  if (dbCache.loaded) return;
+  try {
+    const indexRaw = readFileWithLiteralPath("wanted-db-index.json");
+    const indexData = JSON.parse(indexRaw);
+    dbCache.index = indexData.tables ?? [];
+
+    const catalogMd = readFileWithLiteralPath("wanted-db-catalog.md");
+    dbCache.catalogBlocks = parseCatalogBlocks(catalogMd);
+
+    const contextMd = readFileWithLiteralPath("wanted-db-context.md");
+    dbCache.contextBlocks = parseContextBlocks(contextMd);
+
+    dbCache.loaded = true;
+    console.log(`[db-cache] 로드 완료 — index: ${dbCache.index?.length ?? 0}, catalog: ${dbCache.catalogBlocks.size}, context: ${dbCache.contextBlocks.size}`);
+  } catch (err) {
+    console.warn("[db-cache] 로드 실패:", (err as Error).message);
+    dbCache.loaded = false;
+  }
+}
+
+// Haiku — Spec 보고 관련 테이블 선별
+const DB_SELECT_SYSTEM = `당신은 DB 테이블 선별기다. 주어진 Spec과 사용 가능한 DB 테이블 목록을 보고, 이 Spec의 **Use Case 갭 분석에 참고할 테이블**을 최대 10개 선정한다.
+
+**선정 기준:**
+- Spec이 직접 건드리는 기능·엔티티 (예: 공고 기능 → wanted_des, 지원 → apply)
+- Spec이 암묵적으로 의존하는 맥락 (예: 로그인 플로우 → user, 이력서 기반 매칭 → resume + matching_score)
+- 정책·운영 규칙이 중요할 가능성 있는 테이블 (has_notes=true 우선)
+
+**제외:**
+- 전혀 무관한 도메인 (예: Spec이 채용인데 교육·긱스)
+- 분석용 mart 테이블 (Spec이 지표 분석일 때만 포함)
+
+**출력:**
+- JSON 배열만. 테이블 ID (dataset.name) 형식.
+- 최대 10개, 관련도 내림차순.
+- 예: ["wanteddb.apply","wanteddb.user","wanteddb.resume"]
+
+**규칙:**
+- 없으면 빈 배열.
+- 설명·마크다운 코드블록 금지.
+- id는 반드시 제공 목록에 존재하는 것만.`;
+
+async function selectRelevantTables(specText: string): Promise<string[]> {
+  if (!process.env.ANTHROPIC_API_KEY) return [];
+  ensureDbCache();
+  if (!dbCache.index || dbCache.index.length === 0) return [];
+
+  const spec = specText.length > 6000 ? specText.slice(0, 6000) : specText;
+  // 테이블 메타 컴팩트 포맷 (id | category | summary)
+  const tablesJson = dbCache.index
+    .map((t) => `${t.id} | ${t.category} | ${t.summary}${t.has_notes ? " (맥락있음)" : ""}`)
+    .join("\n");
+
+  try {
+    const t0 = Date.now();
+    const resp = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 500,
+      system: DB_SELECT_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: [
+            // 정적 테이블 목록 → prompt cache (5분 TTL) 로 비용 절감
+            { type: "text", text: `# 사용 가능한 DB 테이블 (${dbCache.index.length}개)\n\n${tablesJson}`, cache_control: { type: "ephemeral" } },
+            { type: "text", text: `# Spec\n\n${spec}\n\n위 Spec 분석에 참고할 테이블 최대 10개를 JSON 배열로만 출력해라.` },
+          ],
+        },
+      ],
+    });
+    const textBlock = resp.content.find((b) => b.type === "text");
+    const text = textBlock && "text" in textBlock ? textBlock.text : "";
+    const m = text.match(/\[[\s\S]*?\]/);
+    if (!m) {
+      console.warn("[db-select] JSON 파싱 실패:", text.slice(0, 200));
+      return [];
+    }
+    const parsed = JSON.parse(m[0]);
+    if (!Array.isArray(parsed)) return [];
+    const validIds = new Set(dbCache.index.map((t) => t.id));
+    const selected = parsed.filter((x) => typeof x === "string" && validIds.has(x)).slice(0, 10);
+    const u = resp.usage as any;
+    console.log(`[db-select] ${Date.now() - t0}ms | in:${u?.input_tokens} (cache_read:${u?.cache_read_input_tokens ?? 0}, cache_write:${u?.cache_creation_input_tokens ?? 0}) out:${u?.output_tokens} | selected: ${JSON.stringify(selected)}`);
+    return selected;
+  } catch (err: any) {
+    console.error("[db-select] ERROR:", err.message);
+    return [];
+  }
+}
+
+function buildStructuredDbContext(tableIds: string[]): string {
+  if (tableIds.length === 0) return "";
+  ensureDbCache();
+
+  const blocks: string[] = [];
+  for (const id of tableIds) {
+    const [dataset, name] = id.split(".");
+    const catalogBlock = dbCache.catalogBlocks.get(id);
+    const contextBlock = dbCache.contextBlocks.get(name);
+    if (!catalogBlock && !contextBlock) continue;
+
+    const parts: string[] = [];
+    parts.push(`## 📦 ${id}`);
+    if (catalogBlock) parts.push(catalogBlock);
+    if (contextBlock) {
+      parts.push(``);
+      parts.push(`### 🧭 운영 맥락 / 정책`);
+      parts.push(contextBlock);
+    }
+    blocks.push(parts.join("\n"));
+  }
+  if (blocks.length === 0) return "";
+
+  return `[참고: DB 구조 + 운영 맥락 — ${blocks.length}개 테이블 선별 주입]
+
+아래는 현재 Spec이 건드리는 것으로 판정된 테이블의 스키마(컬럼 목록)와 운영 맥락(정책·규칙·특이사항)이다.
+Use Case 갭 분석 시:
+- 스키마에 있는 필드/컬럼 중 Spec이 언급 안 한 것 → 고려 누락 여부 검토
+- 운영 맥락 섹션의 규칙 → Spec 결정과의 충돌 또는 반영 여부 확인
+- 오래된 문서(⏰ 마커)는 현행 정책 확인 필요
+
+${blocks.join("\n\n---\n\n")}`;
+}
+
+// 런타임 DB 컨텍스트 수집 (Haiku 선별 → 구조화 주입). 실패 시 빈 문자열 반환 (fallback은 호출측에서 처리).
+async function gatherDbContext(userText: string): Promise<string> {
+  const t0 = Date.now();
+  const ids = await selectRelevantTables(userText);
+  if (ids.length === 0) return "";
+  const ctx = buildStructuredDbContext(ids);
+  console.log(`[db-pipeline] 총 ${Date.now() - t0}ms | ${ids.length}개 테이블 → ${ctx.length}자 주입`);
+  return ctx;
 }
 
 // ── Confluence 탐색 (Phase 3: 결정 비교 기반) ──
@@ -627,21 +844,36 @@ app.post("/api/chat/stream", async (req, res) => {
   const useModel = (reqModel && ALLOWED_MODELS.has(reqModel)) ? reqModel : DEFAULT_MODEL;
   let fullResponse = "";
 
-  // DB 컨텍스트 주입: Use Case 분석 시 DB 구조를 마지막 메시지에 추가
-  const apiMessages: any[] = messages.map((m, i) => {
+  // role 변환만 수행, DB/Confluence 주입은 아래에서 async 처리
+  const apiMessages: any[] = messages.map((m) => {
     const role = m.role === "assistant" ? "assistant" as const : "user" as const;
-    if (includeDbContext && role === "user" && i === messages.length - 1) {
-      const dbKnowledge = loadDbKnowledge();
-      if (dbKnowledge) {
-        const content = typeof m.content === "string"
-          ? m.content + "\n\n---\n\n[참고: 원티드 DB 구조]\n" + dbKnowledge
-          : m.content;
-        console.log(`[db-knowledge] DB 구조 주입: ${dbKnowledge.length}자`);
-        return { role, content };
-      }
-    }
     return { role, content: m.content };
   });
+
+  // DB 컨텍스트 주입 (Stage 2 — Haiku 선별 → catalog+context 블록 조합). 실패 시 기존 knowledge.md fallback.
+  if (includeDbContext && apiMessages.length > 0) {
+    const lastIdx = apiMessages.length - 1;
+    const last = apiMessages[lastIdx];
+    if (last?.role === "user" && typeof last.content === "string") {
+      let ctx = "";
+      try {
+        ctx = await gatherDbContext(last.content);
+      } catch (err) {
+        console.warn("[db-context] gather 실패:", (err as Error).message);
+      }
+      if (!ctx) {
+        // fallback: 기존 knowledge 파일 통째 주입
+        const legacy = loadDbKnowledge();
+        if (legacy) {
+          ctx = "[참고: 원티드 DB 구조 (fallback)]\n" + legacy;
+          console.log(`[db-context] legacy fallback 주입: ${ctx.length}자`);
+        }
+      }
+      if (ctx) {
+        apiMessages[lastIdx] = { ...last, content: last.content + "\n\n---\n\n" + ctx };
+      }
+    }
+  }
 
   // Confluence 컨텍스트 주입 (Phase 3: 결정 비교 기반 파이프라인)
   if (includeConfluenceContext && apiMessages.length > 0) {

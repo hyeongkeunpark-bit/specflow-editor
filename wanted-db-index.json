@@ -1,0 +1,2717 @@
+{
+  "generated": "2026-04-21T02:30:25.843Z",
+  "total_tables": 301,
+  "total_columns": 2082,
+  "tables_with_notes": 26,
+  "tables": [
+    {
+      "id": "amplitude.event_activity",
+      "dataset": "amplitude",
+      "name": "event_activity",
+      "category": "미분류",
+      "summary": "앰플리튜드 wanted-www 프로젝트 > Govern페이지 이벤트 리스트 추출 테이블; 이벤트 Activity 확인용(수동업데이트)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "amplitude.kreditjob",
+      "dataset": "amplitude",
+      "name": "kreditjob",
+      "category": "미분류",
+      "summary": "Amplitude insight (kreditjob-www프로젝트의 로그가 여기에 쌓인다.)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "amplitude.round_up",
+      "dataset": "amplitude",
+      "name": "round_up",
+      "category": "미분류",
+      "summary": "Amplitude Round up",
+      "has_notes": false,
+      "column_count": 19
+    },
+    {
+      "id": "amplitude.www",
+      "dataset": "amplitude",
+      "name": "www",
+      "category": "미분류",
+      "summary": "Amplitude wanted (wanted-all프로젝트의 로그가 여기에 쌓인다. 이름이 www여서 오해하면 안된다. insight 등 다른 서비스 로그는 없고 원티드꺼만 있다!)",
+      "has_notes": false,
+      "column_count": 20
+    },
+    {
+      "id": "amplitude.www_amp_id",
+      "dataset": "amplitude",
+      "name": "www_amp_id",
+      "category": "미분류",
+      "summary": "모든 비로그인 상태의 device 를 amplitude_id 로 연결한 테이블",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "analytics_mart.apply",
+      "dataset": "analytics_mart",
+      "name": "apply",
+      "category": "채용/공통",
+      "summary": "지원내역",
+      "has_notes": false,
+      "column_count": 39
+    },
+    {
+      "id": "analytics_mart.company_en",
+      "dataset": "analytics_mart",
+      "name": "company_en",
+      "category": "미분류",
+      "summary": "(언어값=영어) 원티드 기업사 기본 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.company_first_hire",
+      "dataset": "analytics_mart",
+      "name": "company_first_hire",
+      "category": "미분류",
+      "summary": "기업 별 최초 합격 지원건 데이터",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.company_ja",
+      "dataset": "analytics_mart",
+      "name": "company_ja",
+      "category": "미분류",
+      "summary": "(언어값=일본어) 원티드 기업사 기본 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.company_ko",
+      "dataset": "analytics_mart",
+      "name": "company_ko",
+      "category": "미분류",
+      "summary": "(언어값=한국어) 원티드 기업사 기본 정보",
+      "has_notes": false,
+      "column_count": 19
+    },
+    {
+      "id": "analytics_mart.company_salary_history",
+      "dataset": "analytics_mart",
+      "name": "company_salary_history",
+      "category": "미분류",
+      "summary": "기업의 소스별 결산월별 평균 연봉 데이터",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "analytics_mart.company_tw",
+      "dataset": "analytics_mart",
+      "name": "company_tw",
+      "category": "미분류",
+      "summary": "(언어값=대만어) 원티드 기업사 기본 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.concurrent_apply",
+      "dataset": "analytics_mart",
+      "name": "concurrent_apply",
+      "category": "미분류",
+      "summary": "동시지원 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.event",
+      "dataset": "analytics_mart",
+      "name": "event",
+      "category": "커리어/콘텐츠",
+      "summary": "이벤트 정보 - 이름, 진행 국가, 결제타입, 노출여부, 시작일시 등",
+      "has_notes": false,
+      "column_count": 19
+    },
+    {
+      "id": "analytics_mart.event_registration",
+      "dataset": "analytics_mart",
+      "name": "event_registration",
+      "category": "커리어/콘텐츠",
+      "summary": "이벤트 신청자, 신청 상태, 결제 정보",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "analytics_mart.hidden_hires",
+      "dataset": "analytics_mart",
+      "name": "hidden_hires",
+      "category": "미분류",
+      "summary": "숨은합격건의 apply_id들. 자동업데이트 되는 테이블은 아니고, 가끔 성여운이 업데이트한다. privacy 권한 필요.",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.job_category",
+      "dataset": "analytics_mart",
+      "name": "job_category",
+      "category": "미분류",
+      "summary": "직군 목록",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "analytics_mart.job_role",
+      "dataset": "analytics_mart",
+      "name": "job_role",
+      "category": "미분류",
+      "summary": "직무 목록",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "analytics_mart.live_position_history",
+      "dataset": "analytics_mart",
+      "name": "live_position_history",
+      "category": "미분류",
+      "summary": "cdc 에서 추출한 포지션의 라이브 여부 모든 히스토리\nwanted_mart.live_position_history를 대체함",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "analytics_mart.order",
+      "dataset": "analytics_mart",
+      "name": "order",
+      "category": "커리어/콘텐츠",
+      "summary": "이벤트 결제 관련 정보",
+      "has_notes": false,
+      "column_count": 11
+    },
+    {
+      "id": "analytics_mart.position_en",
+      "dataset": "analytics_mart",
+      "name": "position_en",
+      "category": "미분류",
+      "summary": "(언어값=영어)포지션 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.position_ja",
+      "dataset": "analytics_mart",
+      "name": "position_ja",
+      "category": "미분류",
+      "summary": "(언어값=일본어)포지션 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.position_ko",
+      "dataset": "analytics_mart",
+      "name": "position_ko",
+      "category": "채용/기업",
+      "summary": "(언어값=한국어)포지션 정보",
+      "has_notes": false,
+      "column_count": 15
+    },
+    {
+      "id": "analytics_mart.position_openclose_history",
+      "dataset": "analytics_mart",
+      "name": "position_openclose_history",
+      "category": "채용/기업",
+      "summary": "포지션 첫 승인, 채용 종료 후 승인, 채용 종료 history\nwanted_mart.position_openclose_history, query_results.position_openclose_history를 대체",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "analytics_mart.position_tw",
+      "dataset": "analytics_mart",
+      "name": "position_tw",
+      "category": "미분류",
+      "summary": "(언어값=대만어)포지션 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "analytics_mart.resume",
+      "dataset": "analytics_mart",
+      "name": "resume",
+      "category": "채용/유저",
+      "summary": "이력서(원티드이력서 + 지원자 PDF)\nresume_history테이블과의 차이: wanted_resume_id기준 최신 이력서만 확인되는 테이블",
+      "has_notes": false,
+      "column_count": 13
+    },
+    {
+      "id": "analytics_mart.resume_detail",
+      "dataset": "analytics_mart",
+      "name": "resume_detail",
+      "category": "채용/유저",
+      "summary": "이력서 상세; 이력서 글자 수 + 앰플리튜드 정보",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "analytics_mart.resume_history",
+      "dataset": "analytics_mart",
+      "name": "resume_history",
+      "category": "미분류",
+      "summary": "이력서(원티드이력서 + 지원자 PDF)\n이력서 히스토리성 테이블(이력서를 수정하면 PDF가 새로생성됨)\n지원기록에 지원 당시의 이력서를 join할 땐 resume말고 이 테이블을 사용할 것.",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "analytics_mart.resume_relations",
+      "dataset": "analytics_mart",
+      "name": "resume_relations",
+      "category": "미분류",
+      "summary": "resume <> apply 간 join 용 테이블",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "analytics_mart.tag_position_category",
+      "dataset": "analytics_mart",
+      "name": "tag_position_category",
+      "category": "미분류",
+      "summary": "채용공고(포지션) 직군 정보",
+      "has_notes": false,
+      "column_count": 8
+    },
+    {
+      "id": "analytics_mart.tag_position_role",
+      "dataset": "analytics_mart",
+      "name": "tag_position_role",
+      "category": "미분류",
+      "summary": "채용공고(포지션) 직무 정보",
+      "has_notes": false,
+      "column_count": 8
+    },
+    {
+      "id": "analytics_mart.tag_type",
+      "dataset": "analytics_mart",
+      "name": "tag_type",
+      "category": "미분류",
+      "summary": "원티드 내 각종 분류항목 목록(직군, 직무, 스킬, 산업군, 이벤트태그 등)\nwanted_mart.tag_type을 대체함",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "analytics_mart.tag_user_category",
+      "dataset": "analytics_mart",
+      "name": "tag_user_category",
+      "category": "채용/유저",
+      "summary": "유저 직군 정보",
+      "has_notes": false,
+      "column_count": 8
+    },
+    {
+      "id": "analytics_mart.tag_user_role",
+      "dataset": "analytics_mart",
+      "name": "tag_user_role",
+      "category": "미분류",
+      "summary": "유저 직무 정보",
+      "has_notes": false,
+      "column_count": 8
+    },
+    {
+      "id": "analytics_mart.user",
+      "dataset": "analytics_mart",
+      "name": "user",
+      "category": "채용/유저",
+      "summary": "원티드 유저 (이름, 이메일, 번호, 연차, 국가, 상태, 프로필 레벨, 접속시간 등)",
+      "has_notes": false,
+      "column_count": 25
+    },
+    {
+      "id": "analytics_mart.user_salary_history",
+      "dataset": "analytics_mart",
+      "name": "user_salary_history",
+      "category": "미분류",
+      "summary": "유저의 출처(건강보험, 원티드합격자, 원티드프로필) 별 연봉 데이터",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "analytics_mart.user_id_relations",
+      "dataset": "analytics_mart",
+      "name": "user_id_relations",
+      "category": "미분류",
+      "summary": "서비스별 유저 아이디 모음 테이블",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "analytics_mart.user_marketing_notification",
+      "dataset": "analytics_mart",
+      "name": "user_marketing_notification",
+      "category": "미분류",
+      "summary": "유저 마케팅 수신 동의 데이터",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "appsflyer.installs",
+      "dataset": "appsflyer",
+      "name": "installs",
+      "category": "미분류",
+      "summary": "앱 설치 데이터 종합",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "appsflyer.installs_report",
+      "dataset": "appsflyer",
+      "name": "installs_report",
+      "category": "미분류",
+      "summary": "논오가닉 앱 설치 데이터 AppsFlyer Installs - Raw Data Export",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "appsflyer.organic_installs_report",
+      "dataset": "appsflyer",
+      "name": "organic_installs_report",
+      "category": "미분류",
+      "summary": "오가닉 앱 설치 데이터 AppsFlyer Installs - Raw Data Export",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.cloudaudit_googleapis_com_activity",
+      "dataset": "audit",
+      "name": "cloudaudit_googleapis_com_activity",
+      "category": "미분류",
+      "summary": "감사로그 소스 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.cloudaudit_googleapis_com_data_access",
+      "dataset": "audit",
+      "name": "cloudaudit_googleapis_com_data_access",
+      "category": "미분류",
+      "summary": "감사로그 소스 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.iam_grant_trace",
+      "dataset": "audit",
+      "name": "iam_grant_trace",
+      "category": "미분류",
+      "summary": "빅쿼리 권한 부여 내역",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "audit.jira",
+      "dataset": "audit",
+      "name": "jira",
+      "category": "미분류",
+      "summary": "지라 데이터",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "audit.metadata_query_results",
+      "dataset": "audit",
+      "name": "metadata_query_results",
+      "category": "미분류",
+      "summary": "query_results 에서 wanteddb 를 사용한 뷰 테이블들",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.table_vcs",
+      "dataset": "audit",
+      "name": "table_vcs",
+      "category": "미분류",
+      "summary": "빅쿼리 테이블 생성 이력",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.wanted_audit",
+      "dataset": "audit",
+      "name": "wanted_audit",
+      "category": "미분류",
+      "summary": "빅쿼리 쿼리 이력",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "audit.wanted_group_email",
+      "dataset": "audit",
+      "name": "wanted_group_email",
+      "category": "미분류",
+      "summary": "https://admin.google.com/ac/groups/{id}",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.wanted_groups",
+      "dataset": "audit",
+      "name": "wanted_groups",
+      "category": "미분류",
+      "summary": "원티드 구글 워크스페이스 구성원 그룹 이메일과 그룹에 속한 멤버 이메일",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.wanted_gsuite_users",
+      "dataset": "audit",
+      "name": "wanted_gsuite_users",
+      "category": "미분류",
+      "summary": "신규입사자가 자동 추가되는 원티드 직원 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.wanteddb_vcs",
+      "dataset": "audit",
+      "name": "wanteddb_vcs",
+      "category": "미분류",
+      "summary": "wanteddb 데이터베이스 버전관리",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "audit.wanted_audit_totalBilled_drilldown",
+      "dataset": "audit",
+      "name": "wanted_audit_totalBilled_drilldown",
+      "category": "미분류",
+      "summary": "누가(principalEmail) 어떤 쿼리(query)를 얼마나(billedDollar) 몇번(queryCount) 조회했는지 확인하는 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "bi_dashboard.looker__carrying_capacity",
+      "dataset": "bi_dashboard",
+      "name": "looker__carrying_capacity",
+      "category": "미분류",
+      "summary": "루커용 carrying capacity 데이터",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "bi_dashboard.looker__Hire_Board",
+      "dataset": "bi_dashboard",
+      "name": "looker__Hire_Board",
+      "category": "미분류",
+      "summary": "합격자 정보 테이블. 기존 태블로 Hire Board용 데이터. 현재 Looker에 대시보드는 따로 없음.",
+      "has_notes": false,
+      "column_count": 21
+    },
+    {
+      "id": "bi_dashboard.OPS__Backdoor_Companies",
+      "dataset": "bi_dashboard",
+      "name": "OPS__Backdoor_Companies",
+      "category": "미분류",
+      "summary": "https://wantedx.slack.com/archives/C8QFV04EQ/p1627442096308300",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "bi_dashboard.OPS__Backdoor_Positions",
+      "dataset": "bi_dashboard",
+      "name": "OPS__Backdoor_Positions",
+      "category": "미분류",
+      "summary": "https://wantedx.slack.com/archives/C8QFV04EQ/p1627442096308300",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "bi_dashboard.OPS__Marketing_Simulation",
+      "dataset": "bi_dashboard",
+      "name": "OPS__Marketing_Simulation",
+      "category": "미분류",
+      "summary": "https://wantedx.slack.com/archives/C8QFV04EQ/p1627442096308300",
+      "has_notes": false,
+      "column_count": 20
+    },
+    {
+      "id": "external.jumpit_raw",
+      "dataset": "external",
+      "name": "jumpit_raw",
+      "category": "미분류",
+      "summary": "점핏 크롤링",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "kj_new.insight",
+      "dataset": "kj_new",
+      "name": "insight",
+      "category": "미분류",
+      "summary": "kj_new.kreditjob에 고용보험 기반 ei기업데이터가 매칭된 테이블(매주 월요일 새벽 업데이트)",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "kj_new.bjd",
+      "dataset": "kj_new",
+      "name": "bjd",
+      "category": "미분류",
+      "summary": "https://www.code.go.kr/stdcode/regCodeL.do\n행정표준코드관리시스템 > 법정동 코드 전체자료",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "kj_new.Company",
+      "dataset": "kj_new",
+      "name": "Company",
+      "category": "미분류",
+      "summary": "wanteddb.company_des같은 것. kj의 company테이블이다. 여기에 wantedCompanyId라는 컬럼이 있는데, 이거랑 wanteddb.company_des.id가 join된다!",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "kj_new.CompanyEmployee",
+      "dataset": "kj_new",
+      "name": "CompanyEmployee",
+      "category": "미분류",
+      "summary": "",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "kj_new.CompanySalaryWiki",
+      "dataset": "kj_new",
+      "name": "CompanySalaryWiki",
+      "category": "채용/인사이트",
+      "summary": "연봉제보, 연봉랭킹을 통해 유저에게 받은 연봉정보",
+      "has_notes": false,
+      "column_count": 13
+    },
+    {
+      "id": "kj_new.CompanySales",
+      "dataset": "kj_new",
+      "name": "CompanySales",
+      "category": "미분류",
+      "summary": "",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "kj_new.fss_info",
+      "dataset": "kj_new",
+      "name": "fss_info",
+      "category": "미분류",
+      "summary": "금감원 크롤링: 기업 정보; http://newdart.fss.or.kr/ 사이트 보고서 직원 현황에 대한 데이터",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "kj_new.fss_report",
+      "dataset": "kj_new",
+      "name": "fss_report",
+      "category": "미분류",
+      "summary": "금감원 크롤링: 사업보고서",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "kj_new.fss_sales",
+      "dataset": "kj_new",
+      "name": "fss_sales",
+      "category": "미분류",
+      "summary": "DATARQ-3496 금감원 매출액 / 영업이익 / 당기순이익 파이프라인",
+      "has_notes": false,
+      "column_count": 23
+    },
+    {
+      "id": "kj_new.fss_schema",
+      "dataset": "kj_new",
+      "name": "fss_schema",
+      "category": "미분류",
+      "summary": "금감원 크롤링: 사업보고서 리스트",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "kj_new.industry_stat",
+      "dataset": "kj_new",
+      "name": "industry_stat",
+      "category": "미분류",
+      "summary": "리뉴얼된 크레딧잡으로 보내는 기업현황 처리가 모두 끝난 데이터",
+      "has_notes": false,
+      "column_count": 41
+    },
+    {
+      "id": "kj_new.kj_top_ranking_pv",
+      "dataset": "kj_new",
+      "name": "kj_top_ranking_pv",
+      "category": "채용/인사이트",
+      "summary": "일간 기업별 조회 수 순위 200",
+      "has_notes": true,
+      "column_count": 7
+    },
+    {
+      "id": "kj_new.kreditjob",
+      "dataset": "kj_new",
+      "name": "kreditjob",
+      "category": "미분류",
+      "summary": "리뉴얼된 크레딧잡 파이프라인의 전처리가 모두 끝난 데이터",
+      "has_notes": false,
+      "column_count": 57
+    },
+    {
+      "id": "kj_new.master_company_name",
+      "dataset": "kj_new",
+      "name": "master_company_name",
+      "category": "미분류",
+      "summary": "마스터 사업장명 선택 로직\nhttps://wantedlab.atlassian.net/wiki/spaces/WAN/pages/2813396500#%EB%A7%88%EC%8A%A4%ED%84%B0-%EC%82%AC%EC",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "kj_new.nts_code",
+      "dataset": "kj_new",
+      "name": "nts_code",
+      "category": "채용/인사이트",
+      "summary": "2019년 국세청 산업 분류표",
+      "has_notes": true,
+      "column_count": 10
+    },
+    {
+      "id": "kj_new.pk_unique_overall",
+      "dataset": "kj_new",
+      "name": "pk_unique_overall",
+      "category": "미분류",
+      "summary": "국민연금히스토리. financials는 없다.",
+      "has_notes": false,
+      "column_count": 35
+    },
+    {
+      "id": "kj_new.raw",
+      "dataset": "kj_new",
+      "name": "raw",
+      "category": "미분류",
+      "summary": "국민연금 가입 사업장 내역 원본 데이터",
+      "has_notes": false,
+      "column_count": 22
+    },
+    {
+      "id": "kj_new.raw_pk",
+      "dataset": "kj_new",
+      "name": "raw_pk",
+      "category": "채용/인사이트",
+      "summary": "kjdb.raw 에 크레딧잡 PK 를 연결한 테이블",
+      "has_notes": true,
+      "column_count": 38
+    },
+    {
+      "id": "kj_new.sales",
+      "dataset": "kj_new",
+      "name": "sales",
+      "category": "미분류",
+      "summary": "크레딧잡의 kjdb.KJ_2_SALES(2013년부터 NICE로부터 수집된 매출액)\nkj_new.nice_sales  (NICE raw 데이터) 를 병합",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "kjdb.kbi",
+      "dataset": "kjdb",
+      "name": "kbi",
+      "category": "미분류",
+      "summary": "https://wantedx.slack.com/archives/CPDFVT4MT/p1597391792004900",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "kreditjob_mart.company",
+      "dataset": "kreditjob_mart",
+      "name": "company",
+      "category": "미분류",
+      "summary": "크레딧잡 기업 스냅샷",
+      "has_notes": false,
+      "column_count": 26
+    },
+    {
+      "id": "kreditjob_mart.user_connect",
+      "dataset": "kreditjob_mart",
+      "name": "user_connect",
+      "category": "채용/인사이트",
+      "summary": "크레딧잡 유저 아이디를 기준으로 원아이디, 원티드 유저 아이디를 확인할 수 있는 테이블",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "oneid.admin_role",
+      "dataset": "oneid",
+      "name": "admin_role",
+      "category": "미분류",
+      "summary": "원아이디 어드민 권한",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "oneid.alembic_version",
+      "dataset": "oneid",
+      "name": "alembic_version",
+      "category": "미분류",
+      "summary": "DB스키마 버전",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "oneid.client_custom_message",
+      "dataset": "oneid",
+      "name": "client_custom_message",
+      "category": "미분류",
+      "summary": "클라이언트 경로별 '시작하기' 페이지 커스텀 메시지",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "oneid.dormant_user",
+      "dataset": "oneid",
+      "name": "dormant_user",
+      "category": "미분류",
+      "summary": "휴면 유저",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "oneid.leave_user",
+      "dataset": "oneid",
+      "name": "leave_user",
+      "category": "미분류",
+      "summary": "탈퇴 유저",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "oneid.mobile",
+      "dataset": "oneid",
+      "name": "mobile",
+      "category": "미분류",
+      "summary": "전화번호",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "oneid.service_client",
+      "dataset": "oneid",
+      "name": "service_client",
+      "category": "미분류",
+      "summary": "원아이디를 사용하는 서비스/클라이언트",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "oneid.user",
+      "dataset": "oneid",
+      "name": "user",
+      "category": "미분류",
+      "summary": "유저",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "oneid.user_client_relation",
+      "dataset": "oneid",
+      "name": "user_client_relation",
+      "category": "미분류",
+      "summary": "유저-클라이언트 연결 데이터 (service_client테이블과 연결)",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "oneid.user_provider",
+      "dataset": "oneid",
+      "name": "user_provider",
+      "category": "미분류",
+      "summary": "3rd-party가 제공한 데이터",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "query_results.채사팀_기업날짜별서류통과율및평균응답일",
+      "dataset": "query_results",
+      "name": "채사팀_기업날짜별서류통과율및평균응답일",
+      "category": "미분류",
+      "summary": "서류통과율 (서류통과자/총지원자), 평균응답일 (지원~응답)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.채사팀_CS관리자이메일기업승인현황",
+      "dataset": "query_results",
+      "name": "채사팀_CS관리자이메일기업승인현황",
+      "category": "미분류",
+      "summary": "CS, 관리자 이메일 추출 + 기업 승인 현황 (미승인, 승인 여부)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.채용사업KR_7일30일내신규기업이용전환",
+      "dataset": "query_results",
+      "name": "채용사업KR_7일30일내신규기업이용전환",
+      "category": "미분류",
+      "summary": "DATARQ-1913",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.탈퇴유저추이",
+      "dataset": "query_results",
+      "name": "탈퇴유저추이",
+      "category": "미분류",
+      "summary": "DATARQ-2321",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.휴면유저추이",
+      "dataset": "query_results",
+      "name": "휴면유저추이",
+      "category": "미분류",
+      "summary": "누적휴면유저",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "query_results.applications_per_position",
+      "dataset": "query_results",
+      "name": "applications_per_position",
+      "category": "미분류",
+      "summary": "포지션 당 평균 지원 수",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "query_results.apply_threshold_by_companysize",
+      "dataset": "query_results",
+      "name": "apply_threshold_by_companysize",
+      "category": "미분류",
+      "summary": "반기, 기업 규모 별 공고 적정지원 수, AI0.5이상 적정지원 수 데이터",
+      "has_notes": false,
+      "column_count": 9
+    },
+    {
+      "id": "query_results.company_growth",
+      "dataset": "query_results",
+      "name": "company_growth",
+      "category": "미분류",
+      "summary": "IR용 - 기업 종사자,입사자의 증감 수/증감률 (마지막 국민연금 데이터 업데이트 월 기준)",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "query_results.CRM_apply_log",
+      "dataset": "query_results",
+      "name": "CRM_apply_log",
+      "category": "채용/유저",
+      "summary": "지원자들의 utm source/medium, channel 정보",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "query_results.CRM_signup_log",
+      "dataset": "query_results",
+      "name": "CRM_signup_log",
+      "category": "채용/유저",
+      "summary": "회원가입 유저들의 utm source/medium, channel 정보",
+      "has_notes": false,
+      "column_count": 10
+    },
+    {
+      "id": "query_results.industry_employee__stats",
+      "dataset": "query_results",
+      "name": "industry_employee__stats",
+      "category": "채용/인사이트",
+      "summary": "산업군 별 인원 수",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.industry_stats",
+      "dataset": "query_results",
+      "name": "industry_stats",
+      "category": "미분류",
+      "summary": "IR용 - 산업군 별 산업장 수, 입사자 수, 퇴사자 수 (& MoM, YoY)",
+      "has_notes": false,
+      "column_count": 9
+    },
+    {
+      "id": "query_results.insight_user_review_apply",
+      "dataset": "query_results",
+      "name": "insight_user_review_apply",
+      "category": "미분류",
+      "summary": "[인사이트] 다녀본리뷰, 면접리뷰를 작성한 유저의 (원티드에서의) 지원 이력 데이터",
+      "has_notes": false,
+      "column_count": 10
+    },
+    {
+      "id": "query_results.jira_crt_report",
+      "dataset": "query_results",
+      "name": "jira_crt_report",
+      "category": "미분류",
+      "summary": "크리에이티브팀 (CRT) 지라 리포트 테이블",
+      "has_notes": false,
+      "column_count": 13
+    },
+    {
+      "id": "query_results.jira_desc",
+      "dataset": "query_results",
+      "name": "jira_desc",
+      "category": "미분류",
+      "summary": "지라 성과 보고서용 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.jumpit",
+      "dataset": "query_results",
+      "name": "jumpit",
+      "category": "미분류",
+      "summary": "DATARQ-2225",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.query_results",
+      "dataset": "query_results",
+      "name": "query_results",
+      "category": "미분류",
+      "summary": "크레딧잡 페이지 뷰",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.kj_pv_uniq",
+      "dataset": "query_results",
+      "name": "kj_pv_uniq",
+      "category": "미분류",
+      "summary": "크레딧잡 유니크 유저 페이지 뷰",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "query_results.live_position_w_data",
+      "dataset": "query_results",
+      "name": "live_position_w_data",
+      "category": "미분류",
+      "summary": "현 라이브 포지션의 지원 수, AI0.5이상 지원 수, 승인 일자 (query_results.live_position_w_standard의 재료)",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "query_results.live_position_w_standard",
+      "dataset": "query_results",
+      "name": "live_position_w_standard",
+      "category": "미분류",
+      "summary": "현 라이브 포지션의 적정지원 수/AI0.5이상 적정지워 수/최신성 충족 여부",
+      "has_notes": false,
+      "column_count": 8
+    },
+    {
+      "id": "query_results.MKT_remarketing_feed",
+      "dataset": "query_results",
+      "name": "MKT_remarketing_feed",
+      "category": "미분류",
+      "summary": "DATARQ-2732",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "query_results.MKT_user_device_id",
+      "dataset": "query_results",
+      "name": "MKT_user_device_id",
+      "category": "채용/유저",
+      "summary": "페이스북 타겟 유저의 디바이스 정보(idfa, adid)",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "query_results.my_query_history",
+      "dataset": "query_results",
+      "name": "my_query_history",
+      "category": "미분류",
+      "summary": "나(=사용자)가 빅쿼리에서 실행한 쿼리들의 감사로그.",
+      "has_notes": false,
+      "column_count": 4
+    },
+    {
+      "id": "query_results.PF_0_company_ctrl",
+      "dataset": "query_results",
+      "name": "PF_0_company_ctrl",
+      "category": "미분류",
+      "summary": "2022년 5월 31일까지 가입한 기업, 플랫폼 조직 분석 전용",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "query_results.PF_0_company_test",
+      "dataset": "query_results",
+      "name": "PF_0_company_test",
+      "category": "미분류",
+      "summary": "2023년 12월 31일까지 가입한 기업, 플랫폼 조직 분석 전용",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "query_results.position_openclose_history",
+      "dataset": "query_results",
+      "name": "position_openclose_history",
+      "category": "미분류",
+      "summary": "(deprecated) 포지션 첫 승인, 채용 종료 후 승인, 채용 종료 history\nanalytics_mart.position_openclose_history로 대체되었습니다.",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "query_results.user_language_info",
+      "dataset": "query_results",
+      "name": "user_language_info",
+      "category": "미분류",
+      "summary": "유저의 이력서 내 언어 수준. 그 외 직군/직무/국가/연차/마케팅 이메일 수신 동의 여부 포함",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "query_results.user_notification_approval_history_pivot",
+      "dataset": "query_results",
+      "name": "user_notification_approval_history_pivot",
+      "category": "미분류",
+      "summary": "DATARQ-2321 -> DATARQ-3953 으로 강화\n날짜별 알림항목별유저 추이를 보기위한 user_notification_approval_history 를 피벗팅한 테이블\n첫 user_notification_",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results.users_with_consent_date",
+      "dataset": "query_results",
+      "name": "users_with_consent_date",
+      "category": "채용/유저",
+      "summary": "이메일/푸시 둘 중 하나 동의 + 수신동의 날짜 모두 확인 가능한 유저",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "query_results.users_without_consent_date",
+      "dataset": "query_results",
+      "name": "users_without_consent_date",
+      "category": "채용/유저",
+      "summary": "이메일/푸시 둘 중 하나 동의 + 수신동의 날짜 1개 이상 확인 불가한 유저",
+      "has_notes": false,
+      "column_count": 4
+    },
+    {
+      "id": "query_results.zendesk_report",
+      "dataset": "query_results",
+      "name": "zendesk_report",
+      "category": "미분류",
+      "summary": "DATARQ-2424",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "query_results_privacy.00_companyEmailList_KR",
+      "dataset": "query_results_privacy",
+      "name": "00_companyEmailList_KR",
+      "category": "미분류",
+      "summary": "기업 이메일 리스트 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results_privacy.00_userEmailList_KR",
+      "dataset": "query_results_privacy",
+      "name": "00_userEmailList_KR",
+      "category": "채용/유저",
+      "summary": "유저 이메일 리스트 (KR) - 마케팅 이메일 수신동의O, 휴면유저 제외, 기업 회원 제외, 최근 3개월 내 합격 제외",
+      "has_notes": false,
+      "column_count": 11
+    },
+    {
+      "id": "query_results_privacy.00_userEmailList_KRall",
+      "dataset": "query_results_privacy",
+      "name": "00_userEmailList_KRall",
+      "category": "채용/유저",
+      "summary": "유저 이메일 리스트 (KR)",
+      "has_notes": false,
+      "column_count": 9
+    },
+    {
+      "id": "query_results_privacy.사개팀_원티드긱스프리랜서",
+      "dataset": "query_results_privacy",
+      "name": "사개팀_원티드긱스프리랜서",
+      "category": "미분류",
+      "summary": "https://wantedlab.atlassian.net/browse/DATARQ-1696\n2020.12.02 (지윤): 생성 \n2020.12.08 (지윤): 직무, 근무 가능 장소, 포트폴리오, 자기소개, 연차, ",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "query_results_privacy.사개팀_이력서변환리스트",
+      "dataset": "query_results_privacy",
+      "name": "사개팀_이력서변환리스트",
+      "category": "채용/유저",
+      "summary": "이력서 변환 대상 유저의 지원정보 및 이력서 개수 정보",
+      "has_notes": false,
+      "column_count": 10
+    },
+    {
+      "id": "query_results_privacy.채사팀_합격자재무정보",
+      "dataset": "query_results_privacy",
+      "name": "채사팀_합격자재무정보",
+      "category": "미분류",
+      "summary": "https://wantedlab.atlassian.net/browse/DATARQ-2181\n2022.03.08 (지윤): internal_comment 컬럼 추가 (서연님 요청)\n2022.07.06 (지윤): is_",
+      "has_notes": false,
+      "column_count": 16
+    },
+    {
+      "id": "query_results_privacy.커_IDX_아티클",
+      "dataset": "query_results_privacy",
+      "name": "커_IDX_아티클",
+      "category": "커리어/콘텐츠",
+      "summary": "아티클 제작 현황, 유저 이용 현황",
+      "has_notes": false,
+      "column_count": 16
+    },
+    {
+      "id": "query_results_privacy.커_IDX_영상시청기록",
+      "dataset": "query_results_privacy",
+      "name": "커_IDX_영상시청기록",
+      "category": "커리어/콘텐츠",
+      "summary": "한국+글로벌 유저의 영상 시청 현황 (구독 신청자 + 비신청자 모두 포함)",
+      "has_notes": false,
+      "column_count": 15
+    },
+    {
+      "id": "query_results_privacy.커_IDX_이벤트신청",
+      "dataset": "query_results_privacy",
+      "name": "커_IDX_이벤트신청",
+      "category": "커리어/콘텐츠",
+      "summary": "이벤트(구독포함) 신청자 개인 정보",
+      "has_notes": false,
+      "column_count": 18
+    },
+    {
+      "id": "query_results_privacy.커_IDX_채용연계교육_1",
+      "dataset": "query_results_privacy",
+      "name": "커_IDX_채용연계교육_1",
+      "category": "교육/공통",
+      "summary": "프리온보딩 코스 수료자의 구직 활동 현황 (코스시작일~코스수료일로부터 6개월)",
+      "has_notes": true,
+      "column_count": 24
+    },
+    {
+      "id": "query_results_privacy.커_IDX_채용연계교육_2",
+      "dataset": "query_results_privacy",
+      "name": "커_IDX_채용연계교육_2",
+      "category": "교육/공통",
+      "summary": "챌린지 코스 수료자의 구직 활동 현황 (코스시작일~코스수료일로부터 6개월)",
+      "has_notes": true,
+      "column_count": 22
+    },
+    {
+      "id": "query_results_privacy.커_IDX참고_채용연계교육_합격",
+      "dataset": "query_results_privacy",
+      "name": "커_IDX참고_채용연계교육_합격",
+      "category": "교육/공통",
+      "summary": "프리온보딩 코스+챌린지 코스 수료자의 구직 활동 현황(코스시작일~코스수료일로부터 6개월)",
+      "has_notes": true,
+      "column_count": 24
+    },
+    {
+      "id": "query_results_privacy.커_OKR_커뮤니티_글",
+      "dataset": "query_results_privacy",
+      "name": "커_OKR_커뮤니티_글",
+      "category": "커리어/커뮤니티",
+      "summary": "커뮤니티 글 작성 현황 - 작성한 글의 조회수/댓글수/좋아요수, 작성자 정보",
+      "has_notes": false,
+      "column_count": 20
+    },
+    {
+      "id": "query_results_privacy.커_OKR_커뮤니티_글보기",
+      "dataset": "query_results_privacy",
+      "name": "커_OKR_커뮤니티_글보기",
+      "category": "커리어/커뮤니티",
+      "summary": "커뮤니티 글 조회 현황 - 조회한 글/게시판 정보",
+      "has_notes": false,
+      "column_count": 13
+    },
+    {
+      "id": "query_results_privacy.커_OKR_커뮤니티_댓글",
+      "dataset": "query_results_privacy",
+      "name": "커_OKR_커뮤니티_댓글",
+      "category": "커리어/커뮤니티",
+      "summary": "커뮤니티 댓글 작성 현황 - 작성한 댓글 좋아요수, 작성자 정보",
+      "has_notes": false,
+      "column_count": 16
+    },
+    {
+      "id": "query_results_privacy.커_OKR_커뮤니티_유입",
+      "dataset": "query_results_privacy",
+      "name": "커_OKR_커뮤니티_유입",
+      "category": "커리어/커뮤니티",
+      "summary": "커뮤니티 유저 유입 현황 - user_id, 유입 시간 정보",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "query_results_privacy.커_OKR_커뮤니티_좋아요",
+      "dataset": "query_results_privacy",
+      "name": "커_OKR_커뮤니티_좋아요",
+      "category": "커리어/커뮤니티",
+      "summary": "커뮤니티 좋아요 현황 - 좋아요 대상 글/댓글 정보, 좋아요 유저 정보",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "query_results_privacy.커_RAW_승인공고연차직무정보",
+      "dataset": "query_results_privacy",
+      "name": "커_RAW_승인공고연차직무정보",
+      "category": "교육/공통",
+      "summary": "승인 공고의 요구 연차, 직군/직무 정보",
+      "has_notes": true,
+      "column_count": 8
+    },
+    {
+      "id": "query_results_privacy.커_RAW_이벤트별LV3달성",
+      "dataset": "query_results_privacy",
+      "name": "커_RAW_이벤트별LV3달성",
+      "category": "커리어/콘텐츠",
+      "summary": "DATARQ-1948 , 이벤트 신청한 신규/기존 유저의 Lv3 달성 여부",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "query_results_privacy.커_RAW_이벤트신청폼진입유저",
+      "dataset": "query_results_privacy",
+      "name": "커_RAW_이벤트신청폼진입유저",
+      "category": "미분류",
+      "summary": "DATARQ-2051",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "query_results_privacy.커_RAW_이벤트조회신청매출",
+      "dataset": "query_results_privacy",
+      "name": "커_RAW_이벤트조회신청매출",
+      "category": "커리어/콘텐츠",
+      "summary": "이벤트별 페이지뷰, 등록, 매출 현황",
+      "has_notes": true,
+      "column_count": 22
+    },
+    {
+      "id": "query_results_privacy.커_RAW_KJ기업리스트",
+      "dataset": "query_results_privacy",
+      "name": "커_RAW_KJ기업리스트",
+      "category": "미분류",
+      "summary": "KreditJob에서 유저에게 노출되는 전체 기업리스트. 원티드 company_id 정보 포함",
+      "has_notes": false,
+      "column_count": 4
+    },
+    {
+      "id": "query_results_privacy.커리어_콘텐츠조회_article",
+      "dataset": "query_results_privacy",
+      "name": "커리어_콘텐츠조회_article",
+      "category": "커리어/콘텐츠",
+      "summary": "콘텐츠조회_article : 아티클 조회",
+      "has_notes": true,
+      "column_count": 10
+    },
+    {
+      "id": "query_results_privacy.커리어_콘텐츠조회_education",
+      "dataset": "query_results_privacy",
+      "name": "커리어_콘텐츠조회_education",
+      "category": "교육/공통",
+      "summary": "콘텐츠조회_education : 채용연계교육 관련 이벤트 페이지 조회 현황",
+      "has_notes": true,
+      "column_count": 10
+    },
+    {
+      "id": "query_results_privacy.커리어_콘텐츠조회_exContent",
+      "dataset": "query_results_privacy",
+      "name": "커리어_콘텐츠조회_exContent",
+      "category": "커리어/콘텐츠",
+      "summary": "콘텐츠조회_exContent : 외부(크롤링) 콘텐츠 조회",
+      "has_notes": true,
+      "column_count": 10
+    },
+    {
+      "id": "query_results_privacy.커리어_콘텐츠조회_network",
+      "dataset": "query_results_privacy",
+      "name": "커리어_콘텐츠조회_network",
+      "category": "커리어/콘텐츠",
+      "summary": "콘텐츠조회_network : 스터디살롱, 워크샵 등",
+      "has_notes": true,
+      "column_count": 10
+    },
+    {
+      "id": "query_results_privacy.커리어_콘텐츠조회_UGC",
+      "dataset": "query_results_privacy",
+      "name": "커리어_콘텐츠조회_UGC",
+      "category": "커리어/커뮤니티",
+      "summary": "콘텐츠조회_UGC : 커뮤니티 게시글 조회",
+      "has_notes": true,
+      "column_count": 10
+    },
+    {
+      "id": "query_results_privacy.커리어_콘텐츠조회_VOD",
+      "dataset": "query_results_privacy",
+      "name": "커리어_콘텐츠조회_VOD",
+      "category": "커리어/콘텐츠",
+      "summary": "콘텐츠조회_VOD : 원티드 제작 영상 소개 페이지 클릭",
+      "has_notes": true,
+      "column_count": 8
+    },
+    {
+      "id": "query_results_privacy.커리어_콘텐츠조회_vod_event",
+      "dataset": "query_results_privacy",
+      "name": "커리어_콘텐츠조회_vod_event",
+      "category": "커리어/콘텐츠",
+      "summary": "콘텐츠조회_vod_event : VOD 무료 제공, 추천 관련 이벤트 페이지 조회",
+      "has_notes": true,
+      "column_count": 10
+    },
+    {
+      "id": "query_results_privacy.커리어_콘텐츠조회_wVideo",
+      "dataset": "query_results_privacy",
+      "name": "커리어_콘텐츠조회_wVideo",
+      "category": "커리어/콘텐츠",
+      "summary": "콘텐츠조회_wVideo : 개별 영상 카드 클릭",
+      "has_notes": true,
+      "column_count": 9
+    },
+    {
+      "id": "query_results_privacy.커리어_exContent_등록현황",
+      "dataset": "query_results_privacy",
+      "name": "커리어_exContent_등록현황",
+      "category": "커리어/콘텐츠",
+      "summary": "외부 콘텐츠 등록 현황 및 콘텐츠 상세 정보 (ex. 태그)",
+      "has_notes": true,
+      "column_count": 15
+    },
+    {
+      "id": "query_results_privacy.커리어_exContent_조회현황",
+      "dataset": "query_results_privacy",
+      "name": "커리어_exContent_조회현황",
+      "category": "커리어/콘텐츠",
+      "summary": "외부 콘텐츠 조회 현황 및 기타 정보 (ex. user_id, 콘텐츠 제목, 태그)",
+      "has_notes": true,
+      "column_count": 10
+    },
+    {
+      "id": "query_results_privacy.커리어_UGC_등록현황",
+      "dataset": "query_results_privacy",
+      "name": "커리어_UGC_등록현황",
+      "category": "커리어/커뮤니티",
+      "summary": "커뮤니티 글 등록 현황 및 콘텐츠 정보 (ex. 태그)",
+      "has_notes": true,
+      "column_count": 7
+    },
+    {
+      "id": "query_results_privacy.커리어_UGC_조회현황",
+      "dataset": "query_results_privacy",
+      "name": "커리어_UGC_조회현황",
+      "category": "커리어/커뮤니티",
+      "summary": "커뮤니티 글 조회 현황 및 기타 정보 (ex. user_id, 글 제목, 태그)",
+      "has_notes": true,
+      "column_count": 11
+    },
+    {
+      "id": "query_results_privacy.커리어_wVideo_조회현황",
+      "dataset": "query_results_privacy",
+      "name": "커리어_wVideo_조회현황",
+      "category": "커리어/콘텐츠",
+      "summary": "개별 영상 '카드 클릭' 현황 및 기타 정보 (ex. user_id, 글 제목, 태그)",
+      "has_notes": false,
+      "column_count": 9
+    },
+    {
+      "id": "query_results_privacy.gigs_expert_jikmu_longlist",
+      "dataset": "query_results_privacy",
+      "name": "gigs_expert_jikmu_longlist",
+      "category": "긱스/공통",
+      "summary": "긱스 프리랜서 등록한 유저의 세부 직무 등록 현황",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results_privacy.gigs_experts",
+      "dataset": "query_results_privacy",
+      "name": "gigs_experts",
+      "category": "긱스/공통",
+      "summary": "긱스 프리랜서 등록한 유저 리스트",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results_privacy.gigs_match",
+      "dataset": "query_results_privacy",
+      "name": "gigs_match",
+      "category": "긱스/공통",
+      "summary": "긱스 등록된 프로젝트의 매칭 상태 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results_privacy.gigs_project",
+      "dataset": "query_results_privacy",
+      "name": "gigs_project",
+      "category": "긱스/공통",
+      "summary": "긱스 등록된 프로젝트 리스트",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results_privacy.gigs_project_jikgun_longlist",
+      "dataset": "query_results_privacy",
+      "name": "gigs_project_jikgun_longlist",
+      "category": "긱스/공통",
+      "summary": "긱스 등록된 프로젝트의 직군 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results_privacy.gigs_project_jikmu_longlist",
+      "dataset": "query_results_privacy",
+      "name": "gigs_project_jikmu_longlist",
+      "category": "긱스/공통",
+      "summary": "긱스 등록된 프로젝트의 직무 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results_privacy.gigs_project_skill_longlist",
+      "dataset": "query_results_privacy",
+      "name": "gigs_project_skill_longlist",
+      "category": "긱스/공통",
+      "summary": "긱스 등록된 프로젝트의 스킬 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "query_results_privacy.peopleanalytics_hires",
+      "dataset": "query_results_privacy",
+      "name": "peopleanalytics_hires",
+      "category": "미분류",
+      "summary": "원티드 합격자 기준 처우 분석용 테이블",
+      "has_notes": false,
+      "column_count": 15
+    },
+    {
+      "id": "wanted_cdc._wanted_www",
+      "dataset": "wanted_cdc",
+      "name": "_wanted_www",
+      "category": "미분류",
+      "summary": "2021-01-27 10:48:23",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_cdc.apply_status",
+      "dataset": "wanted_cdc",
+      "name": "apply_status",
+      "category": "미분류",
+      "summary": "DATARQ-1690",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_cdc.binlog_meta",
+      "dataset": "wanted_cdc",
+      "name": "binlog_meta",
+      "category": "미분류",
+      "summary": "CDC 멱등성 관리 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_cdc.profile_level_history",
+      "dataset": "wanted_cdc",
+      "name": "profile_level_history",
+      "category": "미분류",
+      "summary": "wanteddb.user_profile_level_history 테이블이 더이상 업데이트가 되지 않는다는 소식을 접하고 생성한 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_cdc.user_last_access",
+      "dataset": "wanted_cdc",
+      "name": "user_last_access",
+      "category": "미분류",
+      "summary": "유저 마지막 접속 히스토리",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.admin_tags",
+      "dataset": "wanted_gigs",
+      "name": "admin_tags",
+      "category": "미분류",
+      "summary": "어드민 태그 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.AdminTag",
+      "dataset": "wanted_gigs",
+      "name": "AdminTag",
+      "category": "미분류",
+      "summary": "긱스 어드민 태그",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.AdminUser",
+      "dataset": "wanted_gigs",
+      "name": "AdminUser",
+      "category": "미분류",
+      "summary": "긱스 어드민 유저",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.change_histories",
+      "dataset": "wanted_gigs",
+      "name": "change_histories",
+      "category": "미분류",
+      "summary": "변경 이력 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ChangeHistory",
+      "dataset": "wanted_gigs",
+      "name": "ChangeHistory",
+      "category": "미분류",
+      "summary": "긱스 변경 이력",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.Client",
+      "dataset": "wanted_gigs",
+      "name": "Client",
+      "category": "미분류",
+      "summary": "긱스 클라이언트",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ClientReview",
+      "dataset": "wanted_gigs",
+      "name": "ClientReview",
+      "category": "미분류",
+      "summary": "긱스 클라이언트 리뷰",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ContractClient",
+      "dataset": "wanted_gigs",
+      "name": "ContractClient",
+      "category": "미분류",
+      "summary": "긱스 클라이언트 계약 요약",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ContractClientDetail",
+      "dataset": "wanted_gigs",
+      "name": "ContractClientDetail",
+      "category": "미분류",
+      "summary": "긱스 클라이언트 계약 상세",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ContractExpert",
+      "dataset": "wanted_gigs",
+      "name": "ContractExpert",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 계약 요약",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ContractExpertDetail",
+      "dataset": "wanted_gigs",
+      "name": "ContractExpertDetail",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 계약 상세",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.Estimate",
+      "dataset": "wanted_gigs",
+      "name": "Estimate",
+      "category": "미분류",
+      "summary": "긱스 프로젝트 예산",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.Expert",
+      "dataset": "wanted_gigs",
+      "name": "Expert",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 (전문가)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.expert_level_histories",
+      "dataset": "wanted_gigs",
+      "name": "expert_level_histories",
+      "category": "미분류",
+      "summary": "전문가 등급 히스토리",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ExpertAdminTag",
+      "dataset": "wanted_gigs",
+      "name": "ExpertAdminTag",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 어드민 태그",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ExpertGroup",
+      "dataset": "wanted_gigs",
+      "name": "ExpertGroup",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 그룹",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ExpertLevelHistory",
+      "dataset": "wanted_gigs",
+      "name": "ExpertLevelHistory",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 등급 이력",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ExpertReview",
+      "dataset": "wanted_gigs",
+      "name": "ExpertReview",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 리뷰",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.experts",
+      "dataset": "wanted_gigs",
+      "name": "experts",
+      "category": "미분류",
+      "summary": "전문가 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ExpertTag",
+      "dataset": "wanted_gigs",
+      "name": "ExpertTag",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 태그 (스킬, 직군/직무)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.File",
+      "dataset": "wanted_gigs",
+      "name": "File",
+      "category": "미분류",
+      "summary": "긱스 파일",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.Match",
+      "dataset": "wanted_gigs",
+      "name": "Match",
+      "category": "미분류",
+      "summary": "긱스 지원서",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.matches",
+      "dataset": "wanted_gigs",
+      "name": "matches",
+      "category": "미분류",
+      "summary": "매치 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.MatchTag",
+      "dataset": "wanted_gigs",
+      "name": "MatchTag",
+      "category": "미분류",
+      "summary": "긱스 지원서 태그 (스킬, 직군/직무)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.Message",
+      "dataset": "wanted_gigs",
+      "name": "Message",
+      "category": "미분류",
+      "summary": "긱스 메세지 (메일, 문자)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.messages",
+      "dataset": "wanted_gigs",
+      "name": "messages",
+      "category": "미분류",
+      "summary": "메시지 정보 (메일, 문자, 메모 등)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.Notification",
+      "dataset": "wanted_gigs",
+      "name": "Notification",
+      "category": "미분류",
+      "summary": "긱스 알림",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.PartnerProduct",
+      "dataset": "wanted_gigs",
+      "name": "PartnerProduct",
+      "category": "미분류",
+      "summary": "긱스 파트너 상품 요약",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.PartnerProductRequest",
+      "dataset": "wanted_gigs",
+      "name": "PartnerProductRequest",
+      "category": "미분류",
+      "summary": "긱스 파트너 상품 요청",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.PrivacyHistory",
+      "dataset": "wanted_gigs",
+      "name": "PrivacyHistory",
+      "category": "미분류",
+      "summary": "긱스 개인정보 조회 이력",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.Project",
+      "dataset": "wanted_gigs",
+      "name": "Project",
+      "category": "미분류",
+      "summary": "긱스 프로젝트",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ProjectAdvertising",
+      "dataset": "wanted_gigs",
+      "name": "ProjectAdvertising",
+      "category": "미분류",
+      "summary": "긱스 프로젝트 광고",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ProjectBookmark",
+      "dataset": "wanted_gigs",
+      "name": "ProjectBookmark",
+      "category": "미분류",
+      "summary": "긱스 프로젝트 북마크",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.projects",
+      "dataset": "wanted_gigs",
+      "name": "projects",
+      "category": "미분류",
+      "summary": "프로젝트 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ProjectTag",
+      "dataset": "wanted_gigs",
+      "name": "ProjectTag",
+      "category": "미분류",
+      "summary": "긱스 프로젝트 태그 (스킬, 직군/직무)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ResumeProject",
+      "dataset": "wanted_gigs",
+      "name": "ResumeProject",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 프로젝트 경력 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.ResumeWork",
+      "dataset": "wanted_gigs",
+      "name": "ResumeWork",
+      "category": "미분류",
+      "summary": "긱스 프리랜서 근무 경력 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.Tag",
+      "dataset": "wanted_gigs",
+      "name": "Tag",
+      "category": "미분류",
+      "summary": "긱스 태그 (스킬, 직군/직무)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.User",
+      "dataset": "wanted_gigs",
+      "name": "User",
+      "category": "미분류",
+      "summary": "긱스 유저 기본 정보",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_gigs.WorkScope",
+      "dataset": "wanted_gigs",
+      "name": "WorkScope",
+      "category": "미분류",
+      "summary": "긱스 세부 업무 범위서",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_logs.was",
+      "dataset": "wanted_logs",
+      "name": "was",
+      "category": "미분류",
+      "summary": "api를 통해 유입되는 데이터 전체 로그성 테이블 (airflow DAG api_log_mirror_backfill로 업로드됨)",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "wanted_ml.user_test_group",
+      "dataset": "wanted_ml",
+      "name": "user_test_group",
+      "category": "미분류",
+      "summary": "유저ID별 A/B 테스트 그룹에 따라 할당된 model_type",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_ml.zendesk_voc_classified",
+      "dataset": "wanted_ml",
+      "name": "zendesk_voc_classified",
+      "category": "미분류",
+      "summary": "젠데스크 VOC를 LaaS를 활용해 인바운드만 필터링 & 카테고리별 분류, 감정 분석, 키워드, 메인주제를 추출한 테이블. 루커로 확인 가능",
+      "has_notes": false,
+      "column_count": 11
+    },
+    {
+      "id": "wanted_mongo.admin_action_history",
+      "dataset": "wanted_mongo",
+      "name": "admin_action_history",
+      "category": "미분류",
+      "summary": "운영HQ 개인정보취급자 접속기록",
+      "has_notes": false,
+      "column_count": 9
+    },
+    {
+      "id": "wanted_mongo.event_video_play_history",
+      "dataset": "wanted_mongo",
+      "name": "event_video_play_history",
+      "category": "미분류",
+      "summary": "wanted+ 영상 시청 기록(시간) 정보",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "wanted_stats.carrying_capacity",
+      "dataset": "wanted_stats",
+      "name": "carrying_capacity",
+      "category": "미분류",
+      "summary": "원티드 서비스 carrying capacity",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "wanted_stats.company_activeness",
+      "dataset": "wanted_stats",
+      "name": "company_activeness",
+      "category": "미분류",
+      "summary": "Company Activeness BI를 위한 테이블 \nAirflow로 매일 RDB 미러링 작업 이후에 업데이트 됨 DATARQ-2642",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "wanted_stats.company_classification",
+      "dataset": "wanted_stats",
+      "name": "company_classification",
+      "category": "미분류",
+      "summary": "기업 별 스타트업, 급성장 여부, 투자 여부, 인원증감률",
+      "has_notes": false,
+      "column_count": 15
+    },
+    {
+      "id": "wanted_stats.company_growthrate",
+      "dataset": "wanted_stats",
+      "name": "company_growthrate",
+      "category": "미분류",
+      "summary": "기업의 분기/반기/연간 인원증감률",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "wanted_stats.company_response_rate",
+      "dataset": "wanted_stats",
+      "name": "company_response_rate",
+      "category": "채용/기업",
+      "summary": "날짜별 기업별 서류응답률",
+      "has_notes": true,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_stats.company_response_rate_new",
+      "dataset": "wanted_stats",
+      "name": "company_response_rate_new",
+      "category": "채용/기업",
+      "summary": "날짜별 기업별 서류응답률 (2022.9 NEWTOWN 배포 이후 응답률 정의)",
+      "has_notes": true,
+      "column_count": 6
+    },
+    {
+      "id": "wanted_stats.free_onboarding",
+      "dataset": "wanted_stats",
+      "name": "free_onboarding",
+      "category": "교육/공통",
+      "summary": "채용연계교육 - 프리온보딩 코스 수료생 리스트",
+      "has_notes": false,
+      "column_count": 9
+    },
+    {
+      "id": "wanted_stats.free_onboarding_challenge",
+      "dataset": "wanted_stats",
+      "name": "free_onboarding_challenge",
+      "category": "교육/공통",
+      "summary": "채용연계교육 - 챌린지 코스 수료생 리스트",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "wanted_stats.injepool_stats",
+      "dataset": "wanted_stats",
+      "name": "injepool_stats",
+      "category": "미분류",
+      "summary": "인재풀탐색 통계",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_stats.interview_response_rate",
+      "dataset": "wanted_stats",
+      "name": "interview_response_rate",
+      "category": "채용/기업",
+      "summary": "날짜별 기업별 면접응답률",
+      "has_notes": true,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_stats.interview_response_rate_new",
+      "dataset": "wanted_stats",
+      "name": "interview_response_rate_new",
+      "category": "채용/기업",
+      "summary": "날짜별 기업별 최종응답률 (2022.9 NEWTOWN 배포 이후 응답률 정의)",
+      "has_notes": true,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_stats.live_position",
+      "dataset": "wanted_stats",
+      "name": "live_position",
+      "category": "미분류",
+      "summary": "라이브 포지션 리스트",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_stats.live_position_daily",
+      "dataset": "wanted_stats",
+      "name": "live_position_daily",
+      "category": "채용/기업",
+      "summary": "일자별 (스냅샷 형태) 라이브 포지션\nwanted_mart.live_position_daily를 대체한다",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "wanted_stats.matchup_key_actions",
+      "dataset": "wanted_stats",
+      "name": "matchup_key_actions",
+      "category": "채용/기업",
+      "summary": "날짜별 매치업 키액션 (LIKE, OPEN, OFFER, USER_ACCEPT) 수",
+      "has_notes": true,
+      "column_count": 5
+    },
+    {
+      "id": "wanted_stats.matchup_key_metrics",
+      "dataset": "wanted_stats",
+      "name": "matchup_key_metrics",
+      "category": "미분류",
+      "summary": "wanted_stats.matchup_use 와 matchup_hire을 활용한 #data_alarm, #data_alarm_global 용 뷰 테이블",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "wanted_stats.matchup_use",
+      "dataset": "wanted_stats",
+      "name": "matchup_use",
+      "category": "채용/기업",
+      "summary": "매치업 이용 내역 (기업별, 키액션 횟수, 결제 금액 등)",
+      "has_notes": true,
+      "column_count": 28
+    },
+    {
+      "id": "wanted_stats.matchup_companies",
+      "dataset": "wanted_stats",
+      "name": "matchup_companies",
+      "category": "미분류",
+      "summary": "deprecated #data-alarm 채널에서 인재풀탐색(매치업)알람 발생하던 시절에 daily 수치를 적재함. 25년 11월 이후 중단",
+      "has_notes": false,
+      "column_count": 12
+    },
+    {
+      "id": "wanted_stats.monthly_company_activity_log",
+      "dataset": "wanted_stats",
+      "name": "monthly_company_activity_log",
+      "category": "미분류",
+      "summary": "기업의 월별 라이브 포지션 수, 인재풀 열람 수, 인재풀 제안 수  (에어플로우 DAG로 매달 1일 업데이트)",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "wanted_stats.monthly_company_activity_log_w_status",
+      "dataset": "wanted_stats",
+      "name": "monthly_company_activity_log_w_status",
+      "category": "미분류",
+      "summary": "monthly_company_activity_log에 기업의 활성/비활성 여부 (status)를 추가한 테이블\n활성(active)의 기준은 해당 월에 라이브 포지션 있었거나 인재풀 열람을 한 경우",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "wanted_stats.ops_marketing_simulation",
+      "dataset": "wanted_stats",
+      "name": "ops_marketing_simulation",
+      "category": "미분류",
+      "summary": "채용사업팀 market simulation 쿼리용 테이블",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "wanted_stats.position_lifecycle_log",
+      "dataset": "wanted_stats",
+      "name": "position_lifecycle_log",
+      "category": "미분류",
+      "summary": "live 여부를 position_id 기준으로 피벗팅한 테이블 언제 열리고 닫혔는지 알 수 있고, 마지막이 null 일 경우는 현재 라이브되고 있다는 뜻",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "wanted_stats.positions_approved",
+      "dataset": "wanted_stats",
+      "name": "positions_approved",
+      "category": "미분류",
+      "summary": "#data_alarm, #data_alarm_global의 승인 공고 수를 적재하는 테이블",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "wanted_stats.resume",
+      "dataset": "wanted_stats",
+      "name": "resume",
+      "category": "미분류",
+      "summary": "이력서 페이지(wanted.co.kr/resume)에 있는 이력서 데이터입니다.(원본 : wanteddb.resume)\n[21.02.15] \n[수정] is_matching > is_matchup : 매치업에 등록된 ",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_stats.signup_user",
+      "dataset": "wanted_stats",
+      "name": "signup_user",
+      "category": "미분류",
+      "summary": "일 별, 국가 별 회원가입 수(회원가입 시점)",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "wanted_stats.user_job_category",
+      "dataset": "wanted_stats",
+      "name": "user_job_category",
+      "category": "미분류",
+      "summary": "유저 별 직군id, 프로필 레벨 테이블입니다.\n[2020.12.01.] 직군 번역값(KR,EN,JP,TW,CN) 추가",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_stats.user_job_role",
+      "dataset": "wanted_stats",
+      "name": "user_job_role",
+      "category": "미분류",
+      "summary": "유저 별 직군id, 직무id 프로필 레벨 테이블입니다.",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanted_stats.user_notification_day",
+      "dataset": "wanted_stats",
+      "name": "user_notification_day",
+      "category": "미분류",
+      "summary": "푸시 알림 동의 여부 (일별, 유저별)",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "wanted_stats.user_stats",
+      "dataset": "wanted_stats",
+      "name": "user_stats",
+      "category": "미분류",
+      "summary": "분기/국가/연차/직군 별 전체, 활성유저수\nwanted_mart.user_stats를 대체한다",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "wanted_stats.user_stats_YM",
+      "dataset": "wanted_stats",
+      "name": "user_stats_YM",
+      "category": "미분류",
+      "summary": "월/국가/연차/직군 별 전체, 활성유저수\nwanted_mart..user_stats_YM을 대체한다",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "wanteddb.auto_proposal_position_setting",
+      "dataset": "wanteddb",
+      "name": "auto_proposal_position_setting",
+      "category": "미분류",
+      "summary": "포지션별 자동면접제안 기능 세팅 status",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.application_memo",
+      "dataset": "wanteddb",
+      "name": "application_memo",
+      "category": "미분류",
+      "summary": "기업 대시보드에서 지원서에 작성된 댓글 (검토의견, 메모)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.apply",
+      "dataset": "wanteddb",
+      "name": "apply",
+      "category": "미분류",
+      "summary": "지원 로그. apply_id가 distinct하다.",
+      "has_notes": false,
+      "column_count": 42
+    },
+    {
+      "id": "wanteddb.apply_source",
+      "dataset": "wanteddb",
+      "name": "apply_source",
+      "category": "미분류",
+      "summary": "지원시, 어디에서 포지션을 보고 지원했는지 입력하는 값 테이블(에이전트발 지원도 포함)\nsource 컬럼으로 구분, /dashboard/recruitment페이지에서 '지원경로' 선택박스 데이터",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.attraction_tag_company_relation",
+      "dataset": "wanteddb",
+      "name": "attraction_tag_company_relation",
+      "category": "미분류",
+      "summary": "매력 태그와 기업 간의 관계를 정의한 테이블\nhttps://wantedlab.atlassian.net/wiki/spaces/servercircle/pages/3060957455/2024-04+HQ+1+2-1#attr",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "wanteddb.attraction_tag_detail",
+      "dataset": "wanteddb",
+      "name": "attraction_tag_detail",
+      "category": "미분류",
+      "summary": "매력 태그의 상세 정보를 담은 테이블 (인기 태그 여부 정보가 seq로 표현됨)\nhttps://wantedlab.atlassian.net/wiki/spaces/servercircle/pages/3060957455/2",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.attraction_tag_keyword_mapping",
+      "dataset": "wanteddb",
+      "name": "attraction_tag_keyword_mapping",
+      "category": "미분류",
+      "summary": "기업/포지션에서 키워드를 추출해 자동으로 특정 매력 태그에 매핑할 키워드를 정의한 테이블\nhttps://wantedlab.atlassian.net/wiki/spaces/servercircle/pages/3060957",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "wanteddb.blocking_attraction_tag_mapping",
+      "dataset": "wanteddb",
+      "name": "blocking_attraction_tag_mapping",
+      "category": "미분류",
+      "summary": "특정 기업의 포지션과 특정 매력태그가 매핑되지 않도록 블로킹 리스트를 기록하는 테이블\nhttps://wantedlab.atlassian.net/wiki/spaces/servercircle/pages/306095745",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "wanteddb.bookmark",
+      "dataset": "wanteddb",
+      "name": "bookmark",
+      "category": "미분류",
+      "summary": "유저가 포지션 북마크한 로그",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.certificated_user_career",
+      "dataset": "wanteddb",
+      "name": "certificated_user_career",
+      "category": "미분류",
+      "summary": "경력인증 시 certificated_user_caereer 테이블에 인증한 이력들이 무조건 쌓입니다. 이 중 유저가 이력서에 이력을 선택하여 추가한 경우에만 user_career 테이블에 certificated_us",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.company_contract",
+      "dataset": "wanteddb",
+      "name": "company_contract",
+      "category": "미분류",
+      "summary": "기업 계약서",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "wanteddb.company_role",
+      "dataset": "wanteddb",
+      "name": "company_role",
+      "category": "미분류",
+      "summary": "\b기업 관리자, 인사담당자(인담자)",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "wanteddb.dormant_user",
+      "dataset": "wanteddb",
+      "name": "dormant_user",
+      "category": "미분류",
+      "summary": "유저 휴면로그",
+      "has_notes": false,
+      "column_count": 9
+    },
+    {
+      "id": "wanteddb.event",
+      "dataset": "wanteddb",
+      "name": "event",
+      "category": "미분류",
+      "summary": "이벤트 정보",
+      "has_notes": false,
+      "column_count": 20
+    },
+    {
+      "id": "wanteddb.event_registration",
+      "dataset": "wanteddb",
+      "name": "event_registration",
+      "category": "미분류",
+      "summary": "이벤트 신청정보",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "wanteddb.external_job",
+      "dataset": "wanteddb",
+      "name": "external_job",
+      "category": "미분류",
+      "summary": "외부공고(채용공고 상세 하단에 있는 크롤링해 온 공고) 리스트. 외부공고 하나당 id 하나.",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "wanteddb.external_job_tag_type_relation",
+      "dataset": "wanteddb",
+      "name": "external_job_tag_type_relation",
+      "category": "미분류",
+      "summary": "외부공고의 직군, 직무 정보. external_job.id = external_job_tag_type_relation.external_job_id",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "wanteddb.hiring",
+      "dataset": "wanteddb",
+      "name": "hiring",
+      "category": "미분류",
+      "summary": "유저 합격 히스토리 테이블",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "wanteddb.hiring_processing",
+      "dataset": "wanteddb",
+      "name": "hiring_processing",
+      "category": "미분류",
+      "summary": "채용 후 진행사항",
+      "has_notes": false,
+      "column_count": 17
+    },
+    {
+      "id": "wanteddb.hiring_processing_dates",
+      "dataset": "wanteddb",
+      "name": "hiring_processing_dates",
+      "category": "미분류",
+      "summary": "채용 프로세스 로그",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "wanteddb.i18n",
+      "dataset": "wanteddb",
+      "name": "i18n",
+      "category": "미분류",
+      "summary": "i18n.key = translation.i18n_key 와 같이 각 테이블의 i18n_key와 조인해서 사용",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.interview",
+      "dataset": "wanteddb",
+      "name": "interview",
+      "category": "미분류",
+      "summary": "인터뷰 관련 테이블 (2019-11까지 사용)",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "wanteddb.interview_request",
+      "dataset": "wanteddb",
+      "name": "interview_request",
+      "category": "미분류",
+      "summary": "기업의 인터뷰 요청 관련 테이블 (2019-11까지 사용)",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "wanteddb.matching_history",
+      "dataset": "wanteddb",
+      "name": "matching_history",
+      "category": "미분류",
+      "summary": "매치업 회사 & 유저 액션 히스토리 테이블",
+      "has_notes": false,
+      "column_count": 8
+    },
+    {
+      "id": "wanteddb.proposal",
+      "dataset": "wanteddb",
+      "name": "proposal",
+      "category": "미분류",
+      "summary": "매치업 제안",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "wanteddb.proposal_response",
+      "dataset": "wanteddb",
+      "name": "proposal_response",
+      "category": "미분류",
+      "summary": "매치업 제안 응답",
+      "has_notes": false,
+      "column_count": 4
+    },
+    {
+      "id": "wanteddb.recommendation_click",
+      "dataset": "wanteddb",
+      "name": "recommendation_click",
+      "category": "미분류",
+      "summary": "where action = 'like' 하면 유저가 공고를 좋아요 한 로그가 나옴",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.resume",
+      "dataset": "wanteddb",
+      "name": "resume",
+      "category": "미분류",
+      "summary": "이력서 (원티드 + 비원티드). where is_matching=1 and delete_time is null로 해도 user_id당 다수개가 나온다. 이럴 땐 제일 마지막에 생성된 이력서를 매치업에서 노출하고 있다",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "wanteddb.resume_score",
+      "dataset": "wanteddb",
+      "name": "resume_score",
+      "category": "미분류",
+      "summary": "AI 합격 예측에 업로드한 이력서 & 점수",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.sms",
+      "dataset": "wanteddb",
+      "name": "sms",
+      "category": "미분류",
+      "summary": "sms 전송 내역 테이블",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "wanteddb.tag",
+      "dataset": "wanteddb",
+      "name": "tag",
+      "category": "미분류",
+      "summary": "포지션, 기업 유저, 스킬등과 연결된 모든 태그",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "wanteddb.tag_category",
+      "dataset": "wanteddb",
+      "name": "tag_category",
+      "category": "미분류",
+      "summary": "태그를 위한 카테고리 정보를 저장하는 테이블\nhttps://wantedlab.atlassian.net/wiki/spaces/servercircle/pages/3060957455/2024-04+HQ+1+2-1#tag_",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.tag_category_tag_type_relation",
+      "dataset": "wanteddb",
+      "name": "tag_category_tag_type_relation",
+      "category": "미분류",
+      "summary": "태그의 카테고리와 그에 속한 매력 태그와의 관계를 정의하는 테이블\nhttps://wantedlab.atlassian.net/wiki/spaces/servercircle/pages/3060957455/2024-04+H",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.tag_type",
+      "dataset": "wanteddb",
+      "name": "tag_type",
+      "category": "미분류",
+      "summary": "원티드 내에서 사용하는 모든 태그에 대한 정보(매력태그 포함)",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "wanteddb.translation",
+      "dataset": "wanteddb",
+      "name": "translation",
+      "category": "미분류",
+      "summary": "원티드에서 사용하는 모든 백엔드 번역 데이터\n프론트 번역 데이터의 경우 Lokalise 사용",
+      "has_notes": false,
+      "column_count": 4
+    },
+    {
+      "id": "wanteddb.user",
+      "dataset": "wanteddb",
+      "name": "user",
+      "category": "미분류",
+      "summary": "채용서비스 가입 유저 (구직자, 인담자 둘 다) 에 대한 정보. id 가 user_id다.",
+      "has_notes": false,
+      "column_count": 21
+    },
+    {
+      "id": "wanteddb.user_career",
+      "dataset": "wanteddb",
+      "name": "user_career",
+      "category": "미분류",
+      "summary": "원티드 이력서에 기입된 경력정보. 경력당 1행이 생성되기 때문에 한 user_id에 여러 행이 있을 수 있다. 경력인증시 certificated_user_career테이블에 인증한 이력이 쌓이고, 그 중 유저가 이력",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "wanteddb.user_leave_history",
+      "dataset": "wanteddb",
+      "name": "user_leave_history",
+      "category": "미분류",
+      "summary": "회원탈퇴 로그",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "wanteddb.user_point_history",
+      "dataset": "wanteddb",
+      "name": "user_point_history",
+      "category": "미분류",
+      "summary": "원티드 포인트 적립 히스토리",
+      "has_notes": false,
+      "column_count": 7
+    },
+    {
+      "id": "wanteddb.user_profile_level_history",
+      "dataset": "wanteddb",
+      "name": "user_profile_level_history",
+      "category": "미분류",
+      "summary": "",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.user_recommendation",
+      "dataset": "wanteddb",
+      "name": "user_recommendation",
+      "category": "미분류",
+      "summary": "프로필 레벨이 바뀔 때마다 로그가 찍힘. 이 테이블은 곧 없어질 예정이다. (서버팀이 지우고 싶어함)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wanteddb.wanted_des",
+      "dataset": "wanteddb",
+      "name": "wanted_des",
+      "category": "미분류",
+      "summary": "채용공고 테이블",
+      "has_notes": false,
+      "column_count": 29
+    },
+    {
+      "id": "wanteddb.wanted_des_history",
+      "dataset": "wanteddb",
+      "name": "wanted_des_history",
+      "category": "미분류",
+      "summary": "채용공고 히스토리 테이블. 모든 액션에 대한 로그가 찍혀있음. 라이브 상태인 공고의 공고 설정 변경할 때도 status='active'가 남음. \n따라서, 조건을 걸거나 활성 <-> 비활성 로그만 남는 analyti",
+      "has_notes": false,
+      "column_count": 6
+    },
+    {
+      "id": "wanteddb.wanted_job_detail",
+      "dataset": "wanteddb",
+      "name": "wanted_job_detail",
+      "category": "미분류",
+      "summary": "채용공고 상세",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "wanteddb.wanted_resume",
+      "dataset": "wanteddb",
+      "name": "wanted_resume",
+      "category": "미분류",
+      "summary": "원티드 이력서",
+      "has_notes": false,
+      "column_count": 9
+    },
+    {
+      "id": "wanteddb_sns.KafkaUser",
+      "dataset": "wanteddb_sns",
+      "name": "KafkaUser",
+      "category": "미분류",
+      "summary": "소셜 유저 정보",
+      "has_notes": false,
+      "column_count": 1
+    },
+    {
+      "id": "wantedspace_mart.company",
+      "dataset": "wantedspace_mart",
+      "name": "company",
+      "category": "원스/공통",
+      "summary": "기업 정보",
+      "has_notes": false,
+      "column_count": 3
+    },
+    {
+      "id": "wantedspace_mart.company_inactive",
+      "dataset": "wantedspace_mart",
+      "name": "company_inactive",
+      "category": "미분류",
+      "summary": "테스트와 퇴사한 유저에 의해 (자동으로)생긴 기업 정보\n(주로 company와 left outer join하여 비활성화 기업을 제거하고자 할 때 사용)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wantedspace_mart.company_payplan",
+      "dataset": "wantedspace_mart",
+      "name": "company_payplan",
+      "category": "미분류",
+      "summary": "기업이 사용중인 플랜 정보 (company_purchaselog와 join 불가능)",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "wantedspace_mart.company_purchaselog",
+      "dataset": "wantedspace_mart",
+      "name": "company_purchaselog",
+      "category": "미분류",
+      "summary": "기업의 결제이력 (현금결제내역 없음 / 2021.07기준) \n전 월 사용액을 매월 5일에 결제 (company_payplan과 join 불가능)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wantedspace_mart.user",
+      "dataset": "wantedspace_mart",
+      "name": "user",
+      "category": "원스/공통",
+      "summary": "유저 정보",
+      "has_notes": false,
+      "column_count": 8
+    },
+    {
+      "id": "wantedspace_mart.user_request",
+      "dataset": "wantedspace_mart",
+      "name": "user_request",
+      "category": "미분류",
+      "summary": "유저 휴가/외근/재택 신청에 대한 뷰 테이블 (간혹 한 user_id 가 다른 company_id 에 속할수 있으므로 user와 join시 user_id, company_id 를 모두 사용)",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "wantedspace_mart.user_worktime",
+      "dataset": "wantedspace_mart",
+      "name": "user_worktime",
+      "category": "원스/공통",
+      "summary": "유저 출퇴근 이력에 대한 뷰 테이블",
+      "has_notes": false,
+      "column_count": 0
+    },
+    {
+      "id": "weaver.wanted-cdc-www",
+      "dataset": "weaver",
+      "name": "wanted-cdc-www",
+      "category": "미분류",
+      "summary": "원티드 데이터베이스 서버 변경 이력: 해당 서버의 (권한이 있는)모든 database에서 변경 이력을 받아온다.",
+      "has_notes": false,
+      "column_count": 15
+    },
+    {
+      "id": "weaver.weaver-event-www",
+      "dataset": "weaver",
+      "name": "weaver-event-www",
+      "category": "미분류",
+      "summary": "위버로 들어오는 track 이벤트",
+      "has_notes": false,
+      "column_count": 5
+    },
+    {
+      "id": "query_results.company_attraction_tag",
+      "dataset": "query_results",
+      "name": "company_attraction_tag",
+      "category": "미분류",
+      "summary": "기업 매력태그",
+      "has_notes": false,
+      "column_count": 2
+    },
+    {
+      "id": "wanteddb.ai_score_feedback",
+      "dataset": "wanteddb",
+      "name": "ai_score_feedback",
+      "category": "미분류",
+      "summary": "포지션 상세페이지에 있는 ai 서류합격점수에 대한 구직자의 피드백 (i버튼 누르면 피드백 주는 팝업 뜸)",
+      "has_notes": false,
+      "column_count": 0
+    }
+  ]
+}
