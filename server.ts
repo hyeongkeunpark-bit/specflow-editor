@@ -116,27 +116,28 @@ type MetricPayload = {
   session_hash?: string;
 };
 
-function pushMetric(payload: MetricPayload): void {
+async function pushMetric(payload: MetricPayload): Promise<void> {
   const url = process.env.METRICS_WEBHOOK_URL;
   if (!url) return;
 
   const body = { timestamp: new Date().toISOString(), ...payload };
-  // fire-and-forget: await 하지 않음, 실패해도 응답 흐름 영향 0
+  // Vercel serverless에선 res.end() 직후 함수가 종료되므로 반드시 await 필요
+  // 스트리밍 응답은 이미 클라에 전송된 시점이라 UX 영향 없음 (보통 <500ms)
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3000);
-  fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: controller.signal,
-  })
-    .then((r) => {
-      if (!r.ok) console.warn(`[metrics] webhook ${r.status}`);
-    })
-    .catch((err) => {
-      if (err.name !== "AbortError") console.warn(`[metrics] ${err.message}`);
-    })
-    .finally(() => clearTimeout(timer));
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!r.ok) console.warn(`[metrics] webhook ${r.status}`);
+  } catch (err: any) {
+    if (err.name !== "AbortError") console.warn(`[metrics] ${err.message}`);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ── DB 카탈로그/맥락 런타임 선별 주입 (Stage 2) ──
@@ -966,7 +967,7 @@ app.post("/api/chat/stream", async (req, res) => {
       console.log(`[api/chat/stream] duration: ${duration}s | stop_reason: ${stopReason} | output_chars: ${fullResponse.length}`);
       console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cache write: ${u?.cache_creation_input_tokens ?? 0}, read: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
       if (duration > 120) console.warn(`[api/chat/stream] ⚠️ SLOW: ${duration}s`);
-      pushMetric({
+      await pushMetric({
         duration_sec: duration,
         model: useModel,
         stop_reason: stopReason,
@@ -1064,7 +1065,7 @@ app.post("/api/chat/fix-errors", async (req, res) => {
       let finalMsg: any = null;
       try { finalMsg = await stream.finalMessage(); } catch { /* ignore */ }
       const u: any = finalMsg?.usage ?? stream.currentMessageSnapshot?.usage;
-      pushMetric({
+      await pushMetric({
         duration_sec: duration,
         model: DEFAULT_MODEL,
         stop_reason: finalMsg?.stop_reason ?? "unknown",
