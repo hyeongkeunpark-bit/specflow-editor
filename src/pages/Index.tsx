@@ -181,6 +181,7 @@ const Index = () => {
       images: attachments?.images?.map((img) => ({ base64: img.base64, mediaType: img.mediaType })),
       signal: controller.signal,
       model: localStorage.getItem("specbot_model") || undefined,
+      sessionId: activeSessionId,
 
       ...extraOptions,
       onToken: (token) => {
@@ -458,6 +459,62 @@ UX·운영 방향 논의 필요. 결정 없어도 진행은 가능하나 품질 
     if (activeSession.htmlContent) setProtoNeedsSync(true);
   }, [setSpecContent, activeSession.htmlContent]);
 
+  // ── 파일 업로드 핸들러 (스냅샷 생성 + 덮어쓰기) ──
+  // 업로드 전 상태를 스냅샷으로 백업 후 새 내용으로 교체 → 히스토리에서 복원 가능
+  const handleLoadHtml = useCallback((html: string, filename: string) => {
+    const now = Date.now();
+    setSnapshots((prev) => {
+      const next = [...prev];
+      // 기존 내용이 있으면 업로드 직전 상태를 먼저 스냅샷으로 보존
+      if (activeSession.htmlContent || activeSession.specContent) {
+        next.push({
+          spec: activeSession.specContent,
+          html: activeSession.htmlContent,
+          timestamp: now,
+          summary: "Prototype 업로드 직전 상태",
+          userMessage: "",
+        });
+      }
+      // 업로드 후 상태
+      next.push({
+        spec: activeSession.specContent,
+        html,
+        timestamp: now + 1,
+        summary: `Prototype 파일 업로드: ${filename}`,
+        userMessage: "",
+      });
+      return next;
+    });
+    setHtmlContent(html);
+    toast.success("Prototype 파일이 업로드되었습니다");
+  }, [activeSession.specContent, activeSession.htmlContent, setHtmlContent, setSnapshots]);
+
+  const handleLoadSpec = useCallback((spec: string, filename: string) => {
+    const now = Date.now();
+    setSnapshots((prev) => {
+      const next = [...prev];
+      if (activeSession.htmlContent || activeSession.specContent) {
+        next.push({
+          spec: activeSession.specContent,
+          html: activeSession.htmlContent,
+          timestamp: now,
+          summary: "Spec 업로드 직전 상태",
+          userMessage: "",
+        });
+      }
+      next.push({
+        spec,
+        html: activeSession.htmlContent,
+        timestamp: now + 1,
+        summary: `Spec 파일 업로드: ${filename}`,
+        userMessage: "",
+      });
+      return next;
+    });
+    setSpecContent(spec);
+    toast.success("Spec 파일이 업로드되었습니다");
+  }, [activeSession.specContent, activeSession.htmlContent, setSpecContent, setSnapshots]);
+
   // ── Spec 일관성 검토 — Spec 전문만 전송 (대화 이력/HTML 제외로 토큰 절감) ──
   const handleConsistencyCheck = useCallback(async () => {
     if (!activeSession.specContent) return;
@@ -664,7 +721,7 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
   }, [activeSession.messages]);
 
   const sidePanelContent = activePanel && (
-    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} onConsistencyCheck={handleConsistencyCheck} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onLoadSpec={(text) => { setSpecContent(text); }} onClose={() => setActivePanel(null)} /> :
+    activePanel === "spec" ? <SpecPanel content={activeSession.specContent} onEdit={handleSpecEdit} onConsistencyCheck={handleConsistencyCheck} needsSync={specNeedsSync} onSyncToSpec={handleSpecUpdate} isLoading={isLoading} onLoadSpec={handleLoadSpec} onClose={() => setActivePanel(null)} /> :
     activePanel === "code" ? <CodeViewPanel htmlContent={activeSession.htmlContent} onClose={() => setActivePanel(null)} /> :
     activePanel === "history" ? <HistoryPanel snapshots={activeSession.snapshots} onRestore={handleRestore} onScrollToMessage={handleScrollToMessage} isLoading={isLoading} onClose={() => setActivePanel(null)} /> :
     null
@@ -704,7 +761,7 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
               needsSync={protoNeedsSync}
               onSyncToPrototype={handleProtoFromSpec}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
-              onLoadHtml={(html) => { setHtmlContent(html); }}
+              onLoadHtml={handleLoadHtml}
               onErrors={handleIframeErrors}
             />
           </ResizablePanel>

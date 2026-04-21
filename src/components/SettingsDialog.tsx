@@ -13,11 +13,11 @@ type SettingsTab = "model" | "appearance" | "storage";
 
 const MODEL_KEY = "specbot_model";
 
-type ModelOption = "claude-sonnet-4-6" | "claude-opus-4-6";
+type ModelOption = "claude-sonnet-4-6" | "claude-opus-4-6" | "claude-opus-4-7";
 
-const MODEL_OPTIONS: { value: ModelOption; label: string; desc: string }[] = [
+const MODEL_OPTIONS: { value: ModelOption; label: string; desc: string; disabled?: boolean }[] = [
   { value: "claude-sonnet-4-6", label: "Sonnet 4.6", desc: "균형 잡힌 성능과 속도" },
-  { value: "claude-opus-4-6", label: "Opus 4.6", desc: "최고 품질, 느림, 비용 5배" },
+  { value: "claude-opus-4-7", label: "Opus 4.7", desc: "최고 품질, 느림, 비용 5배\n사용을 원하실 경우 담당자에게 문의해 주세요.", disabled: true },
 ];
 
 function getStorageInfo() {
@@ -55,7 +55,12 @@ export default function SettingsDialog({
 }) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("model");
   const [model, setModel] = useState<ModelOption>(() => {
-    return (localStorage.getItem(MODEL_KEY) as ModelOption) || "claude-sonnet-4-6";
+    const stored = localStorage.getItem(MODEL_KEY) as ModelOption | null;
+    // UI에서 미노출된 모델(예: 과거 선택된 Opus 4.6)이 저장되어 있으면 Sonnet 4.6으로 리셋
+    const visibleValues = MODEL_OPTIONS.filter((o) => !o.disabled).map((o) => o.value);
+    if (stored && visibleValues.includes(stored)) return stored;
+    if (stored !== "claude-sonnet-4-6") localStorage.setItem(MODEL_KEY, "claude-sonnet-4-6");
+    return "claude-sonnet-4-6";
   });
   const [storageInfo, setStorageInfo] = useState<ReturnType<typeof getStorageInfo> | null>(null);
 
@@ -131,10 +136,12 @@ export default function SettingsDialog({
                   {MODEL_OPTIONS.map((opt) => (
                     <label
                       key={opt.value}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        model === opt.value
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:bg-accent/30"
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                        opt.disabled
+                          ? "border-border bg-muted/30 cursor-not-allowed opacity-60"
+                          : model === opt.value
+                          ? "border-primary bg-primary/5 cursor-pointer"
+                          : "border-border hover:bg-accent/30 cursor-pointer"
                       }`}
                     >
                       <input
@@ -142,12 +149,13 @@ export default function SettingsDialog({
                         name="model"
                         value={opt.value}
                         checked={model === opt.value}
-                        onChange={() => handleModelChange(opt.value)}
-                        className="accent-primary"
+                        onChange={() => !opt.disabled && handleModelChange(opt.value)}
+                        disabled={opt.disabled}
+                        className="accent-primary disabled:cursor-not-allowed"
                       />
                       <div>
                         <div className="text-sm font-medium">{opt.label}</div>
-                        <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                        <div className="text-xs text-muted-foreground whitespace-pre-line">{opt.desc}</div>
                       </div>
                     </label>
                   ))}

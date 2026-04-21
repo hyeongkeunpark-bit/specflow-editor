@@ -24,8 +24,8 @@ interface PrototypePanelProps {
   onSyncToPrototype?: () => void;
   /** [Prototype 생성] 버튼 클릭 (빈 상태 CTA) */
   onRequestPrototype?: () => void;
-  /** HTML 파일 직접 로드 */
-  onLoadHtml?: (html: string) => void;
+  /** HTML 파일 직접 로드 (html, filename) */
+  onLoadHtml?: (html: string, filename: string) => void;
   /** iframe 런타임 에러 발생 시 콜백 */
   onErrors?: (errors: IframeError[]) => void;
 }
@@ -217,6 +217,35 @@ const PrototypePanel = ({
               </button>
             </>
           )}
+          {htmlContent && onLoadHtml && (
+            <>
+              <div className="w-px h-4 bg-border mx-1" />
+              <label
+                className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer"
+                title="HTML 파일 업로드 (기존 내용 덮어씀, 히스토리에서 복원 가능)"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <input
+                  type="file"
+                  accept=".html,.htm"
+                  className="hidden"
+                  onClick={(e) => {
+                    const ok = window.confirm(
+                      "현재 Prototype을 업로드한 파일로 덮어씁니다.\n\n덮어쓴 후에도 히스토리에서 이전 내용으로 돌아갈 수 있습니다.\n\n계속하시겠습니까?"
+                    );
+                    if (!ok) e.preventDefault();
+                  }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 2 * 1024 * 1024) { toast.error("2MB 이하 파일만 가능합니다."); return; }
+                    file.text().then((text) => { onLoadHtml(text, file.name); });
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </>
+          )}
         </div>
       </div>
 
@@ -261,7 +290,7 @@ const PrototypePanel = ({
                       const file = e.target.files?.[0];
                       if (!file) return;
                       if (file.size > 2 * 1024 * 1024) { toast.error("2MB 이하 파일만 가능합니다."); return; }
-                      file.text().then((text) => { onLoadHtml(text); });
+                      file.text().then((text) => { onLoadHtml(text, file.name); });
                       e.target.value = "";
                     }}
                   />

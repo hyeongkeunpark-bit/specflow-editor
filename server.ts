@@ -4,6 +4,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,7 +15,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
 const DEFAULT_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
-const ALLOWED_MODELS = new Set(["claude-sonnet-4-6", "claude-opus-4-6"]);
+const ALLOWED_MODELS = new Set(["claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7"]);
 
 app.use(express.json({ limit: "5mb" }));
 
@@ -90,6 +91,52 @@ function loadDbKnowledge(): string {
     console.warn("[db-knowledge] 파일 로드 실패:", (err as Error).message);
     return "";
   }
+}
+
+// ── Metrics 수집 (Google Sheets Apps Script 웹훅으로 fire-and-forget POST) ──
+// 환경변수 METRICS_WEBHOOK_URL 없으면 skip. 실패해도 AI 응답 영향 없음.
+
+function hashSession(sid?: string): string {
+  if (!sid) return "";
+  return crypto.createHash("sha1").update(sid).digest("hex").slice(0, 8);
+}
+
+type MetricPayload = {
+  timestamp?: string;
+  duration_sec?: number;
+  model?: string;
+  stop_reason?: string;
+  output_chars?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read?: number;
+  cache_write?: number;
+  endpoint?: string;
+  include_db?: boolean;
+  session_hash?: string;
+};
+
+function pushMetric(payload: MetricPayload): void {
+  const url = process.env.METRICS_WEBHOOK_URL;
+  if (!url) return;
+
+  const body = { timestamp: new Date().toISOString(), ...payload };
+  // fire-and-forget: await 하지 않음, 실패해도 응답 흐름 영향 0
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  })
+    .then((r) => {
+      if (!r.ok) console.warn(`[metrics] webhook ${r.status}`);
+    })
+    .catch((err) => {
+      if (err.name !== "AbortError") console.warn(`[metrics] ${err.message}`);
+    })
+    .finally(() => clearTimeout(timer));
 }
 
 // ── DB 카탈로그/맥락 런타임 선별 주입 (Stage 2) ──
@@ -818,12 +865,13 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext } = req.body as {
+  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext, sessionId } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
     model?: string;
     includeDbContext?: boolean;
     includeConfluenceContext?: boolean;
+    sessionId?: string;
   };
 
   if (!messages || messages.length === 0) {
@@ -918,6 +966,19 @@ app.post("/api/chat/stream", async (req, res) => {
       console.log(`[api/chat/stream] duration: ${duration}s | stop_reason: ${stopReason} | output_chars: ${fullResponse.length}`);
       console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cache write: ${u?.cache_creation_input_tokens ?? 0}, read: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
       if (duration > 120) console.warn(`[api/chat/stream] ⚠️ SLOW: ${duration}s`);
+      pushMetric({
+        duration_sec: duration,
+        model: useModel,
+        stop_reason: stopReason,
+        output_chars: fullResponse.length,
+        input_tokens: u?.input_tokens ?? 0,
+        output_tokens: u?.output_tokens ?? 0,
+        cache_read: u?.cache_read_input_tokens ?? 0,
+        cache_write: u?.cache_creation_input_tokens ?? 0,
+        endpoint: "chat/stream",
+        include_db: !!includeDbContext,
+        session_hash: hashSession(sessionId),
+      });
       res.write("data: [DONE]\n\n");
       res.end();
     });
@@ -957,7 +1018,7 @@ const FIX_ERRORS_SYSTEM_PROMPT = `당신은 HTML 프로토타입의 JavaScript �
 - localStorage SecurityError (sandbox) → try-catch로 감싸기`;
 
 app.post("/api/chat/fix-errors", async (req, res) => {
-  const { html, errors } = req.body as { html: string; errors: string };
+  const { html, errors, sessionId } = req.body as { html: string; errors: string; sessionId?: string };
 
   if (!html || !errors) {
     return res.status(400).json({ error: "html and errors are required" });
@@ -969,6 +1030,7 @@ app.post("/api/chat/fix-errors", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
+  const startTime = Date.now();
   let fullResponse = "";
 
   try {
@@ -996,8 +1058,25 @@ app.post("/api/chat/fix-errors", async (req, res) => {
       res.end();
     });
 
-    stream.on("end", () => {
-      console.log(`[api/chat/fix-errors] 완료: ${fullResponse.length}자`);
+    stream.on("end", async () => {
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      console.log(`[api/chat/fix-errors] 완료: ${fullResponse.length}자 | ${duration}s`);
+      let finalMsg: any = null;
+      try { finalMsg = await stream.finalMessage(); } catch { /* ignore */ }
+      const u: any = finalMsg?.usage ?? stream.currentMessageSnapshot?.usage;
+      pushMetric({
+        duration_sec: duration,
+        model: DEFAULT_MODEL,
+        stop_reason: finalMsg?.stop_reason ?? "unknown",
+        output_chars: fullResponse.length,
+        input_tokens: u?.input_tokens ?? 0,
+        output_tokens: u?.output_tokens ?? 0,
+        cache_read: u?.cache_read_input_tokens ?? 0,
+        cache_write: u?.cache_creation_input_tokens ?? 0,
+        endpoint: "chat/fix-errors",
+        include_db: false,
+        session_hash: hashSession(sessionId),
+      });
       res.write("data: [DONE]\n\n");
       res.end();
     });
