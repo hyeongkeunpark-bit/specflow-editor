@@ -38,7 +38,7 @@ const REMOTE_CONTROL_PROMPT = `현재 Prototype에 상태 전환용 리모컨(�
 - 하단 풀와이드 \`position:fixed; bottom:0; left:0; right:0\` 고정
 - 이 Prototype의 상태 분기(로그인/비로그인, 퍼널 단계, Stage 등)를 토글 버튼으로 즉시 전환 가능하게
 - 컨트롤 바는 z-index 높게
-- 메인 콘텐츠 영역과 기존 하단 고정 요소(CTA 바, bottom sheet, 탭바 등)가 컨트롤 바와 겹치지 않도록 bottom 오프셋 조정`;
+- 모든 상태에서 컨트롤 바에 가려지는 UI가 없도록 — 메인 콘텐츠 padding-bottom, 고정 요소의 bottom 오프셋, 모달/바텀시트 내부 스크롤 영역의 padding-bottom 등 필요한 모든 레이어에 반영`;
 
 const Index = () => {
   const {
