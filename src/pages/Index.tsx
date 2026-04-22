@@ -324,6 +324,8 @@ const Index = () => {
         changeLog: [...protoChangeLogRef.current],
       },
       model: localStorage.getItem("specbot_model") || undefined,
+      sessionId: activeSessionId,
+      clientId: getClientId(),
 
       onToken: (token) => {
         rawStreamRef.current += token;
@@ -557,6 +559,8 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
 
     const options: SendOptions = {
       systemPromptMode: "none",
+      sessionId: activeSessionId,
+      clientId: getClientId(),
       onToken: (token) => {
         rawStreamRef.current += token;
         const display = stripStreamingNoise(rawStreamRef.current);
@@ -620,6 +624,8 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
       },
       existingHtml: activeSession.htmlContent,
       model: localStorage.getItem("specbot_model") || undefined,
+      sessionId: activeSessionId,
+      clientId: getClientId(),
 
       onToken: (token) => {
         rawStreamRef.current += token;

@@ -867,7 +867,7 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext, sessionId, clientId } = req.body as {
+  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
     model?: string;
@@ -875,6 +875,8 @@ app.post("/api/chat/stream", async (req, res) => {
     includeConfluenceContext?: boolean;
     sessionId?: string;
     clientId?: string;
+    specContent?: string;
+    htmlContent?: string;
   };
 
   if (!messages || messages.length === 0) {
@@ -889,9 +891,25 @@ app.post("/api/chat/stream", async (req, res) => {
 
   const startTime = Date.now();
 
-  const system = systemPromptMode === "none"
-    ? []
-    : [{ type: "text" as const, text: loadSystemPrompt(), cache_control: { type: "ephemeral" as const } }];
+  // system 배열 구성
+  //   [0] 시스템 프롬프트 (정적, 1h TTL 캐시)
+  //   [1] Spec/HTML 블록 (선택적, 변경 없을 때 cache_read 0.1x 할인)
+  //
+  // 라벨 형식(`[현재 Spec 전문]`, `[현재 Prototype HTML]`)은 시스템 프롬프트의
+  // 수정 모드 판별·delta search 매칭 로직과 일치해야 함. 포맷 변경 시 AI가
+  // "HTML이 메시지에 없다"로 오판해 유저에게 재요청하는 사고 재발 가능.
+  const system: Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> = [];
+  if (systemPromptMode !== "none") {
+    system.push({ type: "text", text: loadSystemPrompt(), cache_control: { type: "ephemeral" } });
+  }
+  const trimmedSpec = (specContent ?? "").trim();
+  const trimmedHtml = (htmlContent ?? "").trim();
+  if (trimmedSpec || trimmedHtml) {
+    const parts: string[] = [];
+    if (trimmedSpec) parts.push(`[현재 Spec 전문]\n${trimmedSpec}`);
+    if (trimmedHtml) parts.push(`[현재 Prototype HTML]\n${trimmedHtml}`);
+    system.push({ type: "text", text: parts.join("\n\n"), cache_control: { type: "ephemeral" } });
+  }
   const useModel = (reqModel && ALLOWED_MODELS.has(reqModel)) ? reqModel : DEFAULT_MODEL;
   let fullResponse = "";
 

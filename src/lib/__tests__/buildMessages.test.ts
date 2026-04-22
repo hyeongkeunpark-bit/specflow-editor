@@ -17,7 +17,12 @@ function asText(block: Block): TextBlock {
   return block;
 }
 
-describe("buildMessages — 일반 모드 state 주입", () => {
+describe("buildMessages — 일반 모드 (Spec/HTML은 server system 블록으로 이동)", () => {
+  // 2026-04-22 이후: 일반 채팅 모드에서 Spec/HTML은 user 메시지에 prepend하지 않는다.
+  // 대신 sendMessage가 별도 body 필드로 server에 전달 → server가 system 배열에
+  // cache_control 블록으로 주입 (cache_read 0.1x 할인 활용).
+  // buildMessages는 현재 user 메시지 + 스트립된 이력만 반환한다.
+
   it("첫 턴 (Spec/HTML 없음): string content로 단순화", () => {
     const msgs = buildMessages(emptyHistory, "새 프로토타입 만들어줘", {});
     expect(msgs).toHaveLength(1);
@@ -25,7 +30,7 @@ describe("buildMessages — 일반 모드 state 주입", () => {
     expect(msgs[0].content).toBe("새 프로토타입 만들어줘");
   });
 
-  it("Spec + HTML 있음: 단일 string에 둘 다 prepend + [요청] 포맷", () => {
+  it("Spec + HTML 있어도 user 메시지에 prepend하지 않음", () => {
     const msgs = buildMessages(emptyHistory, "버튼 색 바꿔줘", {
       specContent: "## 기능\n- 버튼 클릭",
       htmlContent: "<html><body><button>X</button></body></html>",
@@ -33,56 +38,45 @@ describe("buildMessages — 일반 모드 state 주입", () => {
     expect(msgs).toHaveLength(1);
     expect(typeof msgs[0].content).toBe("string");
     const text = msgs[0].content as string;
-    expect(text).toContain("[현재 Spec 전문]");
-    expect(text).toContain("## 기능");
-    expect(text).toContain("[현재 Prototype HTML]");
-    expect(text).toContain("<button>X</button>");
-    expect(text).toContain("[요청]\n버튼 색 바꿔줘");
-    // Spec이 HTML보다 앞
-    expect(text.indexOf("[현재 Spec 전문]")).toBeLessThan(text.indexOf("[현재 Prototype HTML]"));
-    expect(text.indexOf("[현재 Prototype HTML]")).toBeLessThan(text.indexOf("[요청]"));
+    // 순수 유저 메시지만 — state는 server가 system 블록으로 처리
+    expect(text).toBe("버튼 색 바꿔줘");
+    expect(text).not.toContain("[현재 Spec 전문]");
+    expect(text).not.toContain("[현재 Prototype HTML]");
+    expect(text).not.toContain("[요청]");
   });
 
-  it("HTML만 있음 (Spec 없음)", () => {
+  it("HTML만 있음 (Spec 없음): prepend 없음", () => {
     const msgs = buildMessages(emptyHistory, "수정해줘", {
       htmlContent: "<html></html>",
     });
-    const text = msgs[0].content as string;
-    expect(text).toContain("[현재 Prototype HTML]");
-    expect(text).not.toContain("[현재 Spec 전문]");
-    expect(text).toContain("[요청]\n수정해줘");
+    expect(msgs[0].content).toBe("수정해줘");
   });
 
-  it("Spec만 있음 (HTML 없음)", () => {
+  it("Spec만 있음 (HTML 없음): prepend 없음", () => {
     const msgs = buildMessages(emptyHistory, "뭐가 있어?", {
       specContent: "# Spec\n- 로그인",
     });
-    const text = msgs[0].content as string;
-    expect(text).toContain("[현재 Spec 전문]");
-    expect(text).not.toContain("[현재 Prototype HTML]");
-    expect(text).toContain("[요청]\n뭐가 있어?");
+    expect(msgs[0].content).toBe("뭐가 있어?");
   });
 
-  it("이미지 + Spec + HTML: block 배열로 구성, 마지막 text에 state + 요청 포함", () => {
+  it("이미지 + Spec + HTML: block 배열이되 마지막 text는 순수 요청만", () => {
     const msgs = buildMessages(emptyHistory, "이대로 바꿔", {
       specContent: "spec content",
       htmlContent: "html content",
       images: [{ base64: "AAAA", mediaType: "image/png" }],
     });
     const blocks = asBlocks(msgs[0].content);
-    // 이미지 라벨 + 이미지 + 통합 텍스트 = 3개
     expect(blocks).toHaveLength(3);
     expect(asText(blocks[0]).text).toBe("[첨부 이미지 1]");
     expect(blocks[1].type).toBe("image");
     const finalText = asText(blocks[2]).text;
-    expect(finalText).toContain("[현재 Spec 전문]");
-    expect(finalText).toContain("spec content");
-    expect(finalText).toContain("[현재 Prototype HTML]");
-    expect(finalText).toContain("html content");
-    expect(finalText).toContain("[요청]\n이대로 바꿔");
+    // 마지막 text 블록에 Spec/HTML 포함되지 않음
+    expect(finalText).toBe("이대로 바꿔");
+    expect(finalText).not.toContain("[현재 Spec 전문]");
+    expect(finalText).not.toContain("[현재 Prototype HTML]");
   });
 
-  it("이미지 첨부 + state 없음: block 배열, 요청 prefix 없이 원본 텍스트", () => {
+  it("이미지 첨부 + state 없음: 기존과 동일하게 block 배열 + 순수 텍스트", () => {
     const msgs = buildMessages(emptyHistory, "이 이미지 봐줘", {
       images: [{ base64: "AAAA", mediaType: "image/jpeg" }],
     });

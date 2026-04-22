@@ -157,20 +157,10 @@ export function buildMessages(
     ];
     messages.push({ role: "user", content: parts.join("\n\n") });
   } else {
-    // 일반 채팅 모드: current Spec/HTML을 매 턴 user 메시지 앞에 주입
-    //
-    // cache_control 미적용 이유: Anthropic 캐시는 prefix exact-match인데,
-    // 매 턴 히스토리가 늘어나므로 Spec/HTML block의 prefix 바이트가 달라져 cache 재사용 불가.
-    // 히스토리 스트립(L91-106)을 유지하는 한 근본적으로 재사용 불가능 — 오히려 cache_write 프리미엄(1.25x)만 낭비.
-    // system 프롬프트 캐시(server.ts에서 1h TTL)만 유효하게 동작.
-    const contextParts: string[] = [];
-    if (specContent) contextParts.push(`[현재 Spec 전문]\n${specContent}`);
-    if (htmlContent) contextParts.push(`[현재 Prototype HTML]\n${htmlContent}`);
-
-    const hasContext = contextParts.length > 0;
-    const userText = hasContext
-      ? contextParts.join("\n\n") + `\n\n[요청]\n${currentMessage}`
-      : currentMessage;
+    // 일반 채팅 모드: Spec/HTML은 user 메시지에 prepend하지 않음.
+    // 대신 specContent/htmlContent를 body에 별도로 실어 server로 전달 →
+    // server가 system 배열에 cache_control 블록으로 주입 (cache_read 할인 활용).
+    const userText = currentMessage;
 
     // 이미지가 있으면 multimodal content block으로 구성 (라벨 포함)
     if (images && images.length > 0) {
@@ -395,6 +385,8 @@ async function fetchChatStream(
   includeConfluenceContext?: boolean,
   sessionId?: string,
   clientId?: string,
+  specContent?: string,
+  htmlContent?: string,
 ): Promise<ChatResponse> {
   // existingHtml을 그대로 사용 — AI에게 보낸 포맷과 동일하게 delta 매칭
   const body: Record<string, unknown> = { messages };
@@ -404,6 +396,9 @@ async function fetchChatStream(
   if (includeConfluenceContext) body.includeConfluenceContext = true;
   if (sessionId) body.sessionId = sessionId;
   if (clientId) body.clientId = clientId;
+  // Spec/HTML은 server가 system 블록에 cache_control로 주입 (cache_read 할인 활용)
+  if (specContent) body.specContent = specContent;
+  if (htmlContent) body.htmlContent = htmlContent;
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -490,16 +485,16 @@ async function fetchChatStream(
 }
 
 /** 단일 호출 — 504/overloaded 시 2초 대기 후 1회 재시도 */
-async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string, signal?: AbortSignal, systemPromptMode?: "full" | "none", model?: string, includeDbContext?: boolean, includeConfluenceContext?: boolean, sessionId?: string, clientId?: string): Promise<ChatResponse> {
+async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string, signal?: AbortSignal, systemPromptMode?: "full" | "none", model?: string, includeDbContext?: boolean, includeConfluenceContext?: boolean, sessionId?: string, clientId?: string, specContent?: string, htmlContent?: string): Promise<ChatResponse> {
   try {
-    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId);
+    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent);
   } catch (err) {
     if (!isRetryable(err)) throw err;
     console.warn("[callChat] 재시도 (2초 대기):", err instanceof Error ? err.message : err);
     await sleep(2000);
   }
   try {
-    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId);
+    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent);
   } catch (err) {
     // 재시도도 실패 → 유저 친화적 메시지로 교체
     if (err instanceof Error && err.message.toLowerCase().includes("overloaded")) {
@@ -521,7 +516,12 @@ export async function sendMessage(
 
   const { onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, ...buildOpts } = options;
   const messages = buildMessages(history, userMessage, buildOpts);
-  return callChat(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId);
+  // 일반 채팅 모드에서만 Spec/HTML을 server로 전달 (server가 system 블록에 cache_control로 주입).
+  // Spec/Prototype 업데이트 모드에서는 이미 buildMessages 내부에서 user 메시지에 포함시키므로 전달 불필요.
+  const isGeneralMode = !buildOpts.specUpdateMode && !buildOpts.protoUpdateMode;
+  const specContent = isGeneralMode ? buildOpts.specContent : undefined;
+  const htmlContent = isGeneralMode ? buildOpts.htmlContent : undefined;
+  return callChat(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent);
 }
 
 /**
