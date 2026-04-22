@@ -27,9 +27,7 @@ const anthropic = new Anthropic({
 });
 
 // ── 시스템 프롬프트 + 지식 파일 로드 ──
-// 리터럴 경로로 읽어야 @vercel/nft가 파일을 번들에 포함함
 function readFileWithLiteralPath(filename: string): string {
-  // nft가 추적 가능한 리터럴 매핑
   const fileMap: Record<string, string> = {
     "prompt-v4-prototype-first.md": path.join(__dirname, "prompt-v4-prototype-first.md"),
     "product-spec-v2-template.txt": path.join(__dirname, "product-spec-v2-template.txt"),
@@ -78,7 +76,7 @@ app.get("/api/health", (_req, res) => {
   res.json({
     status: prompt.length > 100 ? "ok" : "error",
     promptLength: prompt.length,
-    env: process.env.VERCEL ? "vercel" : "local",
+    env: process.env.NODE_ENV || "local",
   });
 });
 
@@ -1358,23 +1356,20 @@ app.post("/api/share", async (req, res) => {
   }
 });
 
-// 정적 파일 서빙 + SPA fallback (Backyard/self-hosted 환경)
-// Vercel은 플랫폼이 정적 호스팅을 담당하므로 건너뜀
-if (!process.env.VERCEL) {
-  const distDir = path.join(__dirname, "dist");
-  if (fs.existsSync(distDir)) {
-    app.use(express.static(distDir));
-    app.use((req, res, next) => {
-      if (req.method !== "GET") return next();
-      if (req.path.startsWith("/api/")) return next();
-      res.sendFile(path.join(distDir, "index.html"));
-    });
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[server] listening on 0.0.0.0:${PORT}`);
-    console.log(`[server] Model: ${DEFAULT_MODEL}`);
+// 정적 파일 서빙 + SPA fallback
+const distDir = path.join(__dirname, "dist");
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+  app.use((req, res, next) => {
+    if (req.method !== "GET") return next();
+    if (req.path.startsWith("/api/")) return next();
+    res.sendFile(path.join(distDir, "index.html"));
   });
 }
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`[server] listening on 0.0.0.0:${PORT}`);
+  console.log(`[server] Model: ${DEFAULT_MODEL}`);
+});
 
 export default app;
