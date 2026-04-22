@@ -133,4 +133,41 @@ test.describe("Sync flags (specNeedsSync / protoNeedsSync)", () => {
     await expect(protoSyncBtn(page)).toBeHidden();
     await expect(specSyncBtn(page)).toBeHidden();
   });
+
+  test("Prototype 있는 빈 세션에 Spec 최초 생성 → Proto 버튼 안 뜸", async ({ page }) => {
+    await freshLoad(page);
+
+    // 1턴: HTML만 → Spec 뱃지 ON (Prototype만 존재, Spec 없음)
+    await mockChatStream(page, { chat: "step1", html: SAMPLE_HTML });
+    await sendChat(page, "프로토타입 만들어줘");
+    await expect(specBadge(page)).toBeVisible();
+
+    // 2턴: Spec만 응답 (Prototype 기반 Spec "최초 생성") → Spec 원본은 Prototype이므로
+    // Proto는 뒤처지지 않음. 버튼 뜨면 안 됨.
+    await page.unroute("**/api/chat/stream");
+    await mockChatStream(page, { chat: "step2", spec: SAMPLE_SPEC });
+    await sendChat(page, "스펙도 만들어줘");
+
+    await expect(specBadge(page)).toBeHidden();
+    await expect(protoSyncBtn(page)).toBeHidden();
+  });
+
+  test("Spec 있는 빈 세션에 Prototype 최초 생성 → Spec 뱃지 안 뜸", async ({ page }) => {
+    await freshLoad(page);
+
+    // 1턴: Spec만 → 초기 생성 (Proto는 없음)
+    await mockChatStream(page, { chat: "step1", spec: SAMPLE_SPEC });
+    await sendChat(page, "스펙 만들어줘");
+    await expect(specBadge(page)).toBeHidden();
+    await expect(protoSyncBtn(page)).toBeHidden();
+
+    // 2턴: HTML만 응답 (Spec 기반 Prototype "최초 생성") → Prototype 원본은 Spec이므로
+    // Spec은 뒤처지지 않음. 뱃지 뜨면 안 됨.
+    await page.unroute("**/api/chat/stream");
+    await mockChatStream(page, { chat: "step2", html: SAMPLE_HTML });
+    await sendChat(page, "프로토타입도 만들어줘");
+
+    await expect(specBadge(page)).toBeHidden();
+    await expect(protoSyncBtn(page)).toBeHidden();
+  });
 });

@@ -232,7 +232,8 @@ const Index = () => {
 
       // ── Spec 추출 결과 처리 ──
       if (response.spec) {
-        if (!activeSession.specContent) {
+        const wasSpecEmpty = !activeSession.specContent;
+        if (wasSpecEmpty) {
           // 초기 생성
           setSpecContent(response.spec);
           setSnapshots((prev) => [
@@ -275,13 +276,14 @@ const Index = () => {
         }
         // 이번 턴에 Spec이 최신화됨 — 이전에 켜져있던 동기화 필요 플래그 해제
         setSpecNeedsSync(false);
-        // Spec만 오고 HTML은 그대로인 경우 Prototype이 뒤처짐 → 동기화 필요
-        // (Prototype이 이미 존재할 때만 의미 있음)
-        if (!response.html && activeSession.htmlContent) setProtoNeedsSync(true);
+        // Spec을 **수정**했고 HTML은 그대로면 Prototype이 뒤처짐 → 동기화 필요
+        // 최초 생성(wasSpecEmpty)은 Prototype이 원본이므로 뒤처짐 아님
+        if (!response.html && activeSession.htmlContent && !wasSpecEmpty) setProtoNeedsSync(true);
       }
 
       // ── HTML 추출 결과 처리 ──
       if (response.html) {
+        const wasHtmlEmpty = !activeSession.htmlContent;
         setHtmlContent(response.html);
         // 유저가 실제 수정을 했으므로 복원 직후 억제 해제
         suppressAutoFixInSessionsRef.current.delete(activeSessionId);
@@ -301,9 +303,12 @@ const Index = () => {
           ...prev,
           { id: (Date.now() + 3).toString(), role: "system" as const, content: HTML_UPDATE_NOTICE },
         ]);
-        // Prototype 변경 → Spec 동기화 필요
-        // 단, 이번 턴에 Spec도 함께 왔으면 이미 최신이므로 플래그 유지 X
-        if (!response.spec) setSpecNeedsSync(true);
+        // Spec 뱃지 띄우는 케이스:
+        // 1) Spec이 원래 없었던 세션: Spec 생성 유도용 뱃지 (Prototype-first 워크플로우)
+        // 2) Spec이 있었고 Prototype을 수정한 경우: 동기화 필요 뱃지
+        // 제외: Spec이 있었고 Prototype을 최초 생성한 경우 — Spec이 원본이므로 뒤처짐 아님
+        //      이번 턴에 Spec도 함께 왔으면 이미 최신
+        if (!response.spec && (!activeSession.specContent || !wasHtmlEmpty)) setSpecNeedsSync(true);
         // 이번 턴에 Prototype이 최신화됨 — 이전에 켜져있던 동기화 필요 플래그 해제
         setProtoNeedsSync(false);
       }
