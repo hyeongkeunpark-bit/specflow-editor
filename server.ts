@@ -115,7 +115,42 @@ type MetricPayload = {
   include_db?: boolean;
   session_hash?: string;
   client_hash?: string;
+  // ── 진단 컬럼 (2026-04-22 추가) ──
+  success?: boolean;                  // true = 정상 완료, false = 에러
+  error_type?: string;                // none / credit_exhausted / auth / permission / rate_limit / overloaded / timeout / unknown
+  error_message?: string;             // 원본 에러 메시지 (300자 cap)
+  has_spec_tag?: boolean;             // AI 응답에 <spec> 포함 여부
+  spec_tag_count?: number;            // <spec> 태그 개수 (2 이상이면 이상 신호)
+  has_delta_tag?: boolean;            // AI 응답에 <prototype_delta> 포함 여부
+  trigger_source?: string;            // 유저 행동 단위 (chat / spec_update_button / proto_from_spec_button / consistency_check / use_case_analysis / fix_errors)
 };
+
+// 에러 객체에서 분류 코드 추출 (metrics용)
+function getErrorType(err: any): string {
+  if (!err) return "none";
+  const raw = typeof err?.message === "string" ? err.message : String(err);
+  const lower = raw.toLowerCase();
+
+  if (lower.includes("credit balance") || lower.includes("insufficient_credit") || lower.includes("credit_balance_too_low") || err?.status === 402) return "credit_exhausted";
+  if (err?.status === 401 || lower.includes("authentication")) return "auth";
+  if (err?.status === 403 || lower.includes("permission")) return "permission";
+  if (err?.status === 429 || lower.includes("rate_limit") || lower.includes("rate limit")) return "rate_limit";
+  if (err?.status === 529 || lower.includes("overloaded")) return "overloaded";
+  if (err?.name === "AbortError" || lower.includes("timeout") || lower.includes("aborted")) return "timeout";
+  return "unknown";
+}
+
+// AI 응답 텍스트에서 태그 존재/개수 추출 (metrics용)
+function analyzeResponse(text: string): { has_spec_tag: boolean; spec_tag_count: number; has_delta_tag: boolean } {
+  const specMatches = text.match(/<spec>[\s\S]*?<\/spec>/g);
+  const specTagCount = specMatches?.length ?? 0;
+  const hasDeltaTag = /<prototype_delta>/.test(text);
+  return {
+    has_spec_tag: specTagCount > 0,
+    spec_tag_count: specTagCount,
+    has_delta_tag: hasDeltaTag,
+  };
+}
 
 async function pushMetric(payload: MetricPayload): Promise<void> {
   const url = process.env.METRICS_WEBHOOK_URL;
@@ -898,7 +933,7 @@ app.post("/api/chat", async (req, res) => {
 // ── SSE 스트리밍 엔드포인트 ──
 
 app.post("/api/chat/stream", async (req, res) => {
-  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent } = req.body as {
+  const { messages, systemPromptMode, model: reqModel, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent, triggerSource } = req.body as {
     messages: { role: string; content: any }[];
     systemPromptMode?: "full" | "none";
     model?: string;
@@ -908,6 +943,7 @@ app.post("/api/chat/stream", async (req, res) => {
     clientId?: string;
     specContent?: string;
     htmlContent?: string;
+    triggerSource?: string;
   };
 
   if (!messages || messages.length === 0) {
@@ -1001,9 +1037,21 @@ app.post("/api/chat/stream", async (req, res) => {
       res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
     });
 
-    stream.on("error", (error: any) => {
+    stream.on("error", async (error: any) => {
       console.error("[api/chat/stream] Stream error:", error.message, "status:", error.status);
       res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage(error) })}\n\n`);
+      await pushMetric({
+        duration_sec: Math.round((Date.now() - startTime) / 1000),
+        model: useModel,
+        endpoint: "chat/stream",
+        include_db: !!includeDbContext,
+        session_hash: hashSession(sessionId),
+        client_hash: hashSession(clientId),
+        success: false,
+        error_type: getErrorType(error),
+        error_message: (error?.message ?? String(error)).slice(0, 300),
+        trigger_source: triggerSource,
+      });
       res.write("data: [DONE]\n\n");
       res.end();
     });
@@ -1015,9 +1063,11 @@ app.post("/api/chat/stream", async (req, res) => {
       const u: any = finalMsg?.usage ?? stream.currentMessageSnapshot?.usage;
       const stopReason = finalMsg?.stop_reason ?? stream.currentMessageSnapshot?.stop_reason ?? "unknown";
       const duration = Math.round((Date.now() - startTime) / 1000);
+      const responseAnalysis = analyzeResponse(fullResponse);
       console.log(`[api/chat/stream] duration: ${duration}s | stop_reason: ${stopReason} | output_chars: ${fullResponse.length}`);
       console.log(`[api/chat/stream] input: ${u?.input_tokens ?? "?"} (cache write: ${u?.cache_creation_input_tokens ?? 0}, read: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens ?? "?"}`);
       if (duration > 120) console.warn(`[api/chat/stream] ⚠️ SLOW: ${duration}s`);
+      if (responseAnalysis.spec_tag_count > 1) console.warn(`[api/chat/stream] ⚠️ 다중 <spec> 감지: ${responseAnalysis.spec_tag_count}개`);
       await pushMetric({
         duration_sec: duration,
         model: useModel,
@@ -1031,6 +1081,10 @@ app.post("/api/chat/stream", async (req, res) => {
         include_db: !!includeDbContext,
         session_hash: hashSession(sessionId),
         client_hash: hashSession(clientId),
+        success: true,
+        error_type: "none",
+        ...responseAnalysis,
+        trigger_source: triggerSource,
       });
       res.write("data: [DONE]\n\n");
       res.end();
@@ -1038,6 +1092,18 @@ app.post("/api/chat/stream", async (req, res) => {
   } catch (error: any) {
     console.error("[api/chat/stream] Error:", error.message, "status:", error.status);
     res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage(error) })}\n\n`);
+    await pushMetric({
+      duration_sec: Math.round((Date.now() - startTime) / 1000),
+      model: useModel,
+      endpoint: "chat/stream",
+      include_db: !!includeDbContext,
+      session_hash: hashSession(sessionId),
+      client_hash: hashSession(clientId),
+      success: false,
+      error_type: getErrorType(error),
+      error_message: (error?.message ?? String(error)).slice(0, 300),
+      trigger_source: triggerSource,
+    });
     res.write("data: [DONE]\n\n");
     res.end();
   }
@@ -1104,9 +1170,21 @@ app.post("/api/chat/fix-errors", async (req, res) => {
       res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
     });
 
-    stream.on("error", (error: any) => {
+    stream.on("error", async (error: any) => {
       console.error("[api/chat/fix-errors] Stream error:", error.message, "status:", error.status);
       res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage(error) })}\n\n`);
+      await pushMetric({
+        duration_sec: Math.round((Date.now() - startTime) / 1000),
+        model: DEFAULT_MODEL,
+        endpoint: "chat/fix-errors",
+        include_db: false,
+        session_hash: hashSession(sessionId),
+        client_hash: hashSession(clientId),
+        success: false,
+        error_type: getErrorType(error),
+        error_message: (error?.message ?? String(error)).slice(0, 300),
+        trigger_source: "fix_errors",
+      });
       res.write("data: [DONE]\n\n");
       res.end();
     });
@@ -1117,6 +1195,7 @@ app.post("/api/chat/fix-errors", async (req, res) => {
       let finalMsg: any = null;
       try { finalMsg = await stream.finalMessage(); } catch { /* ignore */ }
       const u: any = finalMsg?.usage ?? stream.currentMessageSnapshot?.usage;
+      const responseAnalysis = analyzeResponse(fullResponse);
       await pushMetric({
         duration_sec: duration,
         model: DEFAULT_MODEL,
@@ -1130,6 +1209,10 @@ app.post("/api/chat/fix-errors", async (req, res) => {
         include_db: false,
         session_hash: hashSession(sessionId),
         client_hash: hashSession(clientId),
+        success: true,
+        error_type: "none",
+        ...responseAnalysis,
+        trigger_source: "fix_errors",
       });
       res.write("data: [DONE]\n\n");
       res.end();
@@ -1137,6 +1220,18 @@ app.post("/api/chat/fix-errors", async (req, res) => {
   } catch (error: any) {
     console.error("[api/chat/fix-errors] Error:", error.message, "status:", error.status);
     res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage(error) })}\n\n`);
+    await pushMetric({
+      duration_sec: Math.round((Date.now() - startTime) / 1000),
+      model: DEFAULT_MODEL,
+      endpoint: "chat/fix-errors",
+      include_db: false,
+      session_hash: hashSession(sessionId),
+      client_hash: hashSession(clientId),
+      success: false,
+      error_type: getErrorType(error),
+      error_message: (error?.message ?? String(error)).slice(0, 300),
+      trigger_source: "fix_errors",
+    });
     res.write("data: [DONE]\n\n");
     res.end();
   }

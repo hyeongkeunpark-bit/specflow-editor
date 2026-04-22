@@ -196,6 +196,7 @@ const Index = () => {
       model: localStorage.getItem("specbot_model") || undefined,
       sessionId: activeSessionId,
       clientId: getClientId(),
+      triggerSource: "chat",
 
       ...extraOptions,
       onToken: (token) => {
@@ -338,6 +339,7 @@ const Index = () => {
       model: localStorage.getItem("specbot_model") || undefined,
       sessionId: activeSessionId,
       clientId: getClientId(),
+      triggerSource: "spec_update_button",
 
       onToken: (token) => {
         rawStreamRef.current += token;
@@ -466,7 +468,7 @@ UX·운영 방향 논의 필요. 결정 없어도 진행은 가능하나 품질 
 - 휴면·탈퇴 유저: 세션 무효화 후 비로그인 분기로 처리 권장
 - A/B 쿠키 재할당: 쿠키 삭제 시 신규 방문자로 간주해 재할당이 표준 관행
 
-마지막에 '위 항목을 확인해주세요. 🎯 항목은 선택지를 고른 뒤, 🧩 항목은 의견을 주시고, ℹ️는 반영 여부만 확인해주세요. 반영 원하시면 번호로 알려주세요.'라고 안내해줘.`, undefined, { systemPromptMode: "none", includeDbContext: true });
+마지막에 '위 항목을 확인해주세요. 🎯 항목은 선택지를 고른 뒤, 🧩 항목은 의견을 주시고, ℹ️는 반영 여부만 확인해주세요. 반영 원하시면 번호로 알려주세요.'라고 안내해줘.`, undefined, { systemPromptMode: "none", includeDbContext: true, triggerSource: "use_case_analysis" });
   }, [handleSend]);
 
   // ── Spec 직접 편집 콜백 ──
@@ -573,6 +575,7 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
       systemPromptMode: "none",
       sessionId: activeSessionId,
       clientId: getClientId(),
+      triggerSource: "consistency_check",
       onToken: (token) => {
         rawStreamRef.current += token;
         const display = stripStreamingNoise(rawStreamRef.current);
@@ -640,6 +643,7 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
       model: localStorage.getItem("specbot_model") || undefined,
       sessionId: activeSessionId,
       clientId: getClientId(),
+      triggerSource: "proto_from_spec_button",
 
       onToken: (token) => {
         rawStreamRef.current += token;

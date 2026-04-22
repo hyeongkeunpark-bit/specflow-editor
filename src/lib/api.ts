@@ -63,6 +63,8 @@ export interface SendOptions {
   sessionId?: string;
   /** 익명 client 식별자 (metrics에 hash 형태로 기록 — 브라우저·유저 단위 구분) */
   clientId?: string;
+  /** 유저 행동 단위 트리거 (metrics trigger_source 용): chat / spec_update_button / proto_from_spec_button / consistency_check / use_case_analysis */
+  triggerSource?: string;
   /** 취소 시그널 */
   signal?: AbortSignal;
 }
@@ -387,6 +389,7 @@ async function fetchChatStream(
   clientId?: string,
   specContent?: string,
   htmlContent?: string,
+  triggerSource?: string,
 ): Promise<ChatResponse> {
   // existingHtml을 그대로 사용 — AI에게 보낸 포맷과 동일하게 delta 매칭
   const body: Record<string, unknown> = { messages };
@@ -399,6 +402,7 @@ async function fetchChatStream(
   // Spec/HTML은 server가 system 블록에 cache_control로 주입 (cache_read 할인 활용)
   if (specContent) body.specContent = specContent;
   if (htmlContent) body.htmlContent = htmlContent;
+  if (triggerSource) body.triggerSource = triggerSource;
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -485,16 +489,16 @@ async function fetchChatStream(
 }
 
 /** 단일 호출 — 504/overloaded 시 2초 대기 후 1회 재시도 */
-async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string, signal?: AbortSignal, systemPromptMode?: "full" | "none", model?: string, includeDbContext?: boolean, includeConfluenceContext?: boolean, sessionId?: string, clientId?: string, specContent?: string, htmlContent?: string): Promise<ChatResponse> {
+async function callChat(messages: ApiMessage[], onToken?: (token: string) => void, existingHtml?: string, signal?: AbortSignal, systemPromptMode?: "full" | "none", model?: string, includeDbContext?: boolean, includeConfluenceContext?: boolean, sessionId?: string, clientId?: string, specContent?: string, htmlContent?: string, triggerSource?: string): Promise<ChatResponse> {
   try {
-    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent);
+    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent, triggerSource);
   } catch (err) {
     if (!isRetryable(err)) throw err;
     console.warn("[callChat] 재시도 (2초 대기):", err instanceof Error ? err.message : err);
     await sleep(2000);
   }
   try {
-    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent);
+    return await fetchChatStream(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent, triggerSource);
   } catch (err) {
     // 재시도도 실패 → 유저 친화적 메시지로 교체
     if (err instanceof Error && err.message.toLowerCase().includes("overloaded")) {
@@ -514,14 +518,14 @@ export async function sendMessage(
   const dummy = matchDummy(userMessage);
   if (dummy) return dummy;
 
-  const { onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, ...buildOpts } = options;
+  const { onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, triggerSource, ...buildOpts } = options;
   const messages = buildMessages(history, userMessage, buildOpts);
   // 일반 채팅 모드에서만 Spec/HTML을 server로 전달 (server가 system 블록에 cache_control로 주입).
   // Spec/Prototype 업데이트 모드에서는 이미 buildMessages 내부에서 user 메시지에 포함시키므로 전달 불필요.
   const isGeneralMode = !buildOpts.specUpdateMode && !buildOpts.protoUpdateMode;
   const specContent = isGeneralMode ? buildOpts.specContent : undefined;
   const htmlContent = isGeneralMode ? buildOpts.htmlContent : undefined;
-  return callChat(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent);
+  return callChat(messages, onToken, existingHtml, signal, systemPromptMode, model, includeDbContext, includeConfluenceContext, sessionId, clientId, specContent, htmlContent, triggerSource);
 }
 
 /**
