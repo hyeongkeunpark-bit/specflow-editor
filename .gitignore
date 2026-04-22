@@ -28,3 +28,9 @@ dist-ssr
 # Vercel 빌드 시 api/에 복사되는 프롬프트 파일
 api/*.md
 api/*.txt
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
