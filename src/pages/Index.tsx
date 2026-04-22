@@ -25,14 +25,12 @@ type SidePanel = "spec" | "code" | "history" | null;
 // Spec/Prototype 업데이트 시 유저에게 보내는 안내 메시지 (경로 무관, 통일)
 // 복원 안내를 함께 제공 — 어떤 경로로 업데이트되든 되돌릴 수 있음을 명시.
 const SPEC_UPDATE_NOTICE =
-  "📝 Spec이 업데이트되었습니다\n" +
-  "(업데이트는 히스토리에서 취소할 수 있어요.)\n" +
-  "(Prototype도 함께 복원됩니다.)";
+  "📝 Spec이 업데이트되었습니다.\n" +
+  "(히스토리에서 업데이트 전 버전으로 되돌릴 수 있으며, Prototype도 함께 복원됩니다.)";
 
 const HTML_UPDATE_NOTICE =
-  "🖥️ Prototype이 업데이트되었습니다\n" +
-  "(업데이트는 히스토리에서 취소할 수 있어요.)\n" +
-  "(Spec도 함께 복원됩니다.)";
+  "🖥️ Prototype이 업데이트되었습니다.\n" +
+  "(히스토리에서 업데이트 전 버전으로 되돌릴 수 있으며, Spec도 함께 복원됩니다.)";
 
 const Index = () => {
   const {
@@ -267,6 +265,11 @@ const Index = () => {
             ]);
           }
         }
+        // 이번 턴에 Spec이 최신화됨 — 이전에 켜져있던 동기화 필요 플래그 해제
+        setSpecNeedsSync(false);
+        // Spec만 오고 HTML은 그대로인 경우 Prototype이 뒤처짐 → 동기화 필요
+        // (Prototype이 이미 존재할 때만 의미 있음)
+        if (!response.html && activeSession.htmlContent) setProtoNeedsSync(true);
       }
 
       // ── HTML 추출 결과 처리 ──
@@ -290,8 +293,11 @@ const Index = () => {
           ...prev,
           { id: (Date.now() + 3).toString(), role: "system" as const, content: HTML_UPDATE_NOTICE },
         ]);
-        // Prototype 변경 → Spec 동기화 필요 (Spec 유무와 무관 — 없으면 생성, 있으면 업데이트)
-        setSpecNeedsSync(true);
+        // Prototype 변경 → Spec 동기화 필요
+        // 단, 이번 턴에 Spec도 함께 왔으면 이미 최신이므로 플래그 유지 X
+        if (!response.spec) setSpecNeedsSync(true);
+        // 이번 턴에 Prototype이 최신화됨 — 이전에 켜져있던 동기화 필요 플래그 해제
+        setProtoNeedsSync(false);
       }
     } catch (err) {
       // 취소된 경우 조용히 처리

@@ -221,13 +221,14 @@ const PrototypePanel = ({
             <>
               <div className="w-px h-4 bg-border mx-1" />
               <label
-                className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer"
+                className={`p-1.5 rounded transition-colors ${isLoading ? "opacity-30 cursor-not-allowed pointer-events-none" : "cursor-pointer hover:bg-accent text-muted-foreground hover:text-accent-foreground"}`}
                 title="HTML 파일 업로드 (기존 내용 덮어씀, 히스토리에서 복원 가능)"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <input
                   type="file"
                   accept=".html,.htm"
+                  disabled={isLoading}
                   className="hidden"
                   onClick={(e) => {
                     const ok = window.confirm(
@@ -279,12 +280,13 @@ const PrototypePanel = ({
                 </button>
               )}
               {onLoadHtml && (
-                <label className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">
+                <label className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border border-border transition-colors ${isLoading ? "opacity-30 cursor-not-allowed pointer-events-none text-muted-foreground" : "cursor-pointer text-muted-foreground hover:bg-accent hover:text-accent-foreground"}`}>
                   <Upload className="w-3.5 h-3.5" />
                   HTML 불러오기
                   <input
                     type="file"
                     accept=".html,.htm"
+                    disabled={isLoading}
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
