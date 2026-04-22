@@ -26,13 +26,13 @@ type SidePanel = "spec" | "code" | "history" | null;
 // 복원 안내를 함께 제공 — 어떤 경로로 업데이트되든 되돌릴 수 있음을 명시.
 const SPEC_UPDATE_NOTICE =
   "📝 Spec이 업데이트되었습니다\n" +
-  "업데이트를 원치 않으실 경우 히스토리 기능을 통해 복원해 주세요.\n" +
-  "(Prototype도 함께 복원)";
+  "(업데이트는 히스토리에서 취소할 수 있어요.)\n" +
+  "(Prototype도 함께 복원됩니다.)";
 
 const HTML_UPDATE_NOTICE =
   "🖥️ Prototype이 업데이트되었습니다\n" +
-  "업데이트를 원치 않으실 경우 히스토리 기능을 통해 복원해 주세요.\n" +
-  "(Spec도 함께 복원)";
+  "(업데이트는 히스토리에서 취소할 수 있어요.)\n" +
+  "(Spec도 함께 복원됩니다.)";
 
 const Index = () => {
   const {

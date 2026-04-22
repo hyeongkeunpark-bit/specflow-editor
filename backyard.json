@@ -1,0 +1,6 @@
+{
+  "name": "product-spec-editor",
+  "framework": "react-vite",
+  "registry": "oci.wntd.co/backyard/product-spec-editor",
+  "createdAt": "2026-04-22T00:00:00.000Z"
+}

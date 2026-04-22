@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
-const PORT = process.env.SERVER_PORT || 3001;
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3001;
 const DEFAULT_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
 const ALLOWED_MODELS = new Set(["claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7"]);
 
@@ -1358,10 +1358,21 @@ app.post("/api/share", async (req, res) => {
   }
 });
 
-// Vercel 환경에서는 listen하지 않음 (serverless function으로 동작)
+// 정적 파일 서빙 + SPA fallback (Backyard/self-hosted 환경)
+// Vercel은 플랫폼이 정적 호스팅을 담당하므로 건너뜀
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`[server] API proxy running on http://localhost:${PORT}`);
+  const distDir = path.join(__dirname, "dist");
+  if (fs.existsSync(distDir)) {
+    app.use(express.static(distDir));
+    app.use((req, res, next) => {
+      if (req.method !== "GET") return next();
+      if (req.path.startsWith("/api/")) return next();
+      res.sendFile(path.join(distDir, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[server] listening on 0.0.0.0:${PORT}`);
     console.log(`[server] Model: ${DEFAULT_MODEL}`);
   });
 }

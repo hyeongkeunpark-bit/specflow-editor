@@ -1,0 +1,41 @@
+node_modules
+.git
+.gitignore
+.env
+.env.*
+dist
+.vercel
+.next
+
+# tests / reports
+e2e
+playwright-report
+test-results
+playwright.config.ts
+test-*.ts
+test-*.mjs
+
+# docs / notes (런타임에서 읽는 파일은 아래에서 예외 처리)
+*.md
+첨부
+memo.md
+prompt-*.md
+product-spec-v2-template*.txt
+system\ prompt.md*
+
+# 런타임 필수: 시스템 프롬프트 + DB 지식 파일
+!prompt-v4-prototype-first.md
+!product-spec-v2-template.txt
+!wanted-db-knowledge.md
+!wanted-db-catalog.md
+!wanted-db-context.md
+
+# editor / misc
+.vscode
+.idea
+.DS_Store
+.gstack
+
+# Docker 자기 자신
+Dockerfile
+.dockerignore
