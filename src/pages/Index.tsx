@@ -12,7 +12,6 @@ import { useSessionManager } from "@/hooks/useSessionManager";
 import { sendMessage, sharePrototype } from "@/lib/api";
 import type { SendOptions } from "@/lib/api";
 import { getClientId } from "@/lib/clientId";
-import { recordSpecEvent } from "@/lib/specDebug";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { formatErrorsForAI, tryClientPatch, type IframeError } from "@/lib/iframeErrors";
@@ -224,22 +223,6 @@ const Index = () => {
         return prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m));
       });
 
-      // 🔬 진단 로깅 (2026-04-22) — Spec 업데이트 실종 사고 규명용
-      // response.spec이 null이어도 기록 (왜 안 찍혔는지 확인 가능)
-      {
-        const mergedForDebug = response.spec
-          ? (activeSession.specContent ? mergeSpec(activeSession.specContent, response.spec) : response.spec)
-          : activeSession.specContent;
-        recordSpecEvent({
-          trigger: "handleSend",
-          sessionId: activeSessionId,
-          rawStream: rawStreamRef.current,
-          responseSpec: response.spec,
-          existingSpec: activeSession.specContent,
-          mergedSpec: mergedForDebug,
-        });
-      }
-
       // ── Spec 추출 결과 처리 ──
       if (response.spec) {
         if (!activeSession.specContent) {
@@ -374,19 +357,6 @@ const Index = () => {
       setMessages((prev) =>
         prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
       );
-
-      // 🔬 진단 로깅 (2026-04-22) — "완료라 선언했는데 실제 반영 안 됨" 사고 규명용
-      const mergedForDebug = response.spec
-        ? (activeSession.specContent ? mergeSpec(activeSession.specContent, response.spec) : response.spec)
-        : activeSession.specContent;
-      recordSpecEvent({
-        trigger: "handleSpecUpdate",
-        sessionId: activeSessionId,
-        rawStream: rawStreamRef.current,
-        responseSpec: response.spec,
-        existingSpec: activeSession.specContent,
-        mergedSpec: mergedForDebug,
-      });
 
       if (response.spec) {
         if (!activeSession.specContent) {
