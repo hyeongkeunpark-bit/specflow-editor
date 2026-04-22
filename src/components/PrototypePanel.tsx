@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Monitor, Smartphone, Share2, Check, Loader2, FileText, ListChecks, RefreshCw, Upload } from "lucide-react";
+import { Monitor, Smartphone, Share2, Check, Loader2, FileText, ListChecks, RefreshCw, Upload, Gamepad2 } from "lucide-react";
 import { toast } from "sonner";
 import { injectErrorCapture, isIframeErrorEvent, type IframeError } from "@/lib/iframeErrors";
 import { sharePrototype } from "@/lib/api";
@@ -18,6 +18,8 @@ interface PrototypePanelProps {
   onShareUrlChange?: (url: string) => void;
   /** [Use Case 분석] 버튼 클릭 */
   onEdgeCaseAnalysis?: () => void;
+  /** [리모컨 추가] 버튼 클릭 — 상태 전환용 컨트롤 바를 AI에게 추가 요청 */
+  onAddRemoteControl?: () => void;
   /** Prototype 동기화 필요 표시 (Spec이 변경됨 → Prototype 업데이트 필요) */
   needsSync?: boolean;
   /** 플로팅 "Prototype 업데이트" 버튼 클릭 */
@@ -38,6 +40,7 @@ const PrototypePanel = ({
   shareUrl,
   onShareUrlChange,
   onEdgeCaseAnalysis,
+  onAddRemoteControl,
   needsSync,
   onSyncToPrototype,
   onRequestPrototype,
@@ -216,6 +219,17 @@ const PrototypePanel = ({
                 Use Case 분석
               </button>
             </>
+          )}
+          {htmlContent && onAddRemoteControl && (
+            <button
+              onClick={onAddRemoteControl}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="상태 전환용 컨트롤 바(리모컨)를 Prototype 하단에 추가합니다"
+            >
+              <Gamepad2 className="w-3 h-3" />
+              리모컨 추가
+            </button>
           )}
           {htmlContent && onLoadHtml && (
             <>

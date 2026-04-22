@@ -32,6 +32,14 @@ const HTML_UPDATE_NOTICE =
   "🖥️ Prototype이 업데이트되었습니다.\n" +
   "(히스토리에서 업데이트 전 버전으로 되돌릴 수 있으며, Spec도 함께 복원됩니다.)";
 
+// [리모컨 추가] 버튼 클릭 시 AI에 보낼 고정 요청
+const REMOTE_CONTROL_PROMPT = `현재 Prototype에 상태 전환용 리모컨(컨트롤 바)을 추가해줘.
+
+- 하단 풀와이드 \`position:fixed; bottom:0; left:0; right:0\` 고정
+- 이 Prototype의 상태 분기(로그인/비로그인, 퍼널 단계, Stage 등)를 토글 버튼으로 즉시 전환 가능하게
+- 컨트롤 바는 z-index 높게
+- 메인 콘텐츠 영역과 기존 하단 고정 요소(CTA 바, bottom sheet, 탭바 등)가 컨트롤 바와 겹치지 않도록 bottom 오프셋 조정`;
+
 const Index = () => {
   const {
     sessions,
@@ -407,6 +415,11 @@ const Index = () => {
       setIsLoading(false);
     }
   }, [setMessages, setSpecContent, setSnapshots, activeSession.messages, activeSession.specContent, activeSession.htmlContent]);
+
+  // ── [리모컨 추가] 버튼 → 고정 요청을 채팅으로 전송 ──
+  const handleAddRemoteControl = useCallback(() => {
+    handleSend(REMOTE_CONTROL_PROMPT, undefined, { triggerSource: "remote_control_button" });
+  }, [handleSend]);
 
   // ── [Use Case 분석] 버튼 → 일반 채팅으로 분석 요청 ──
   const handleEdgeCaseAnalysis = useCallback(() => {
@@ -790,6 +803,7 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
               shareUrl={activeSession.shareUrl}
               onShareUrlChange={setShareUrl}
               onEdgeCaseAnalysis={handleEdgeCaseAnalysis}
+              onAddRemoteControl={handleAddRemoteControl}
               needsSync={protoNeedsSync}
               onSyncToPrototype={handleProtoFromSpec}
               onRequestPrototype={() => handleSend("Prototype 생성해줘")}
