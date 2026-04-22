@@ -755,13 +755,15 @@ export function parseResponse(text: string, existingHtml?: string): ParsedRespon
     .replace(/<prototype_delta>[\s\S]*?<\/prototype_delta>/g, "")
     .trim();
 
-  // ── 1차: <spec> 태그로 Spec 추출 ──
-  const specTagMatch = text.match(/<spec>([\s\S]*?)<\/spec>/);
-  if (specTagMatch) {
-    let spec = specTagMatch[1].trim();
+  // ── 1차: <spec> 태그로 Spec 추출 (다중 태그 지원 — AI가 섹션별로 여러 <spec>로 나눠 출력하는 케이스) ──
+  const specMatches = [...text.matchAll(/<spec>([\s\S]*?)<\/spec>/g)];
+  if (specMatches.length > 0) {
+    const specPieces = specMatches.map((m) => m[1].trim()).filter((s) => s.length > 0);
+    let spec = specPieces.join("\n\n").trim();
     spec = normalizeSpecWhitespace(spec);
 
     debugLog("parseResponse (<spec> 태그)", {
+      specTagCount: specMatches.length,
       specLength: spec.length,
       specSections: spec.match(/^## .+/gm)?.join(", ") ?? "(없음)",
     });

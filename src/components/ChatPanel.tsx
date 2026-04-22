@@ -267,7 +267,7 @@ const ChatPanel = ({
         {messages.map((msg) =>
           msg.role === "system" ? (
             <div key={msg.id} id={`msg-${msg.id}`} className="flex justify-center">
-              <span className="text-sm text-muted-foreground">{msg.content}</span>
+              <div className="text-sm text-muted-foreground whitespace-pre-wrap max-w-md text-center leading-relaxed">{msg.content}</div>
             </div>
           ) : (
             <div

@@ -12,6 +12,7 @@ import { useSessionManager } from "@/hooks/useSessionManager";
 import { sendMessage, sharePrototype } from "@/lib/api";
 import type { SendOptions } from "@/lib/api";
 import { getClientId } from "@/lib/clientId";
+import { recordSpecEvent } from "@/lib/specDebug";
 import { mergeSpec } from "@/lib/parser";
 import type { ChatMessage } from "@/lib/types";
 import { formatErrorsForAI, tryClientPatch, type IframeError } from "@/lib/iframeErrors";
@@ -21,6 +22,18 @@ import SettingsDialog from "@/components/SettingsDialog";
 import { toast } from "sonner";
 
 type SidePanel = "spec" | "code" | "history" | null;
+
+// Spec/Prototype 업데이트 시 유저에게 보내는 안내 메시지 (경로 무관, 통일)
+// 복원 안내를 함께 제공 — 어떤 경로로 업데이트되든 되돌릴 수 있음을 명시.
+const SPEC_UPDATE_NOTICE =
+  "📝 Spec이 업데이트되었습니다\n" +
+  "업데이트를 원치 않으실 경우 히스토리 기능을 통해 복원해 주세요.\n" +
+  "(Prototype도 함께 복원)";
+
+const HTML_UPDATE_NOTICE =
+  "🖥️ Prototype이 업데이트되었습니다\n" +
+  "업데이트를 원치 않으실 경우 히스토리 기능을 통해 복원해 주세요.\n" +
+  "(Spec도 함께 복원)";
 
 const Index = () => {
   const {
@@ -202,7 +215,7 @@ const Index = () => {
 
       // 스트리밍 완료 후: chatText로 AI 메시지 정리
       // AI가 설명 없이 delta/html/spec만 출력한 경우 → 빈 AI 메시지 제거
-      // ("🖥️ Prototype 업데이트됨" / "📝 Spec 업데이트됨" 시스템 메시지가 대신 알림)
+      // (HTML_UPDATE_NOTICE / SPEC_UPDATE_NOTICE 시스템 메시지가 대신 알림)
       const chatContent = response.chatText.trim();
       setMessages((prev) => {
         if (!chatContent && (response.html || response.spec)) {
@@ -210,6 +223,22 @@ const Index = () => {
         }
         return prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m));
       });
+
+      // 🔬 진단 로깅 (2026-04-22) — Spec 업데이트 실종 사고 규명용
+      // response.spec이 null이어도 기록 (왜 안 찍혔는지 확인 가능)
+      {
+        const mergedForDebug = response.spec
+          ? (activeSession.specContent ? mergeSpec(activeSession.specContent, response.spec) : response.spec)
+          : activeSession.specContent;
+        recordSpecEvent({
+          trigger: "handleSend",
+          sessionId: activeSessionId,
+          rawStream: rawStreamRef.current,
+          responseSpec: response.spec,
+          existingSpec: activeSession.specContent,
+          mergedSpec: mergedForDebug,
+        });
+      }
 
       // ── Spec 추출 결과 처리 ──
       if (response.spec) {
@@ -228,7 +257,7 @@ const Index = () => {
           ]);
           setMessages((prev) => [
             ...prev,
-            { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 업데이트됨" },
+            { id: (Date.now() + 2).toString(), role: "system" as const, content: SPEC_UPDATE_NOTICE },
           ]);
         } else {
           // 수정 모드: merge
@@ -250,7 +279,7 @@ const Index = () => {
             ]);
             setMessages((prev) => [
               ...prev,
-              { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 업데이트됨" },
+              { id: (Date.now() + 2).toString(), role: "system" as const, content: SPEC_UPDATE_NOTICE },
             ]);
           }
         }
@@ -275,7 +304,7 @@ const Index = () => {
         ]);
         setMessages((prev) => [
           ...prev,
-          { id: (Date.now() + 3).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
+          { id: (Date.now() + 3).toString(), role: "system" as const, content: HTML_UPDATE_NOTICE },
         ]);
         // Prototype 변경 → Spec 동기화 필요 (Spec 유무와 무관 — 없으면 생성, 있으면 업데이트)
         setSpecNeedsSync(true);
@@ -346,6 +375,19 @@ const Index = () => {
         prev.map((m) => (m.id === aiMsgId ? { ...m, content: chatContent || m.content } : m)),
       );
 
+      // 🔬 진단 로깅 (2026-04-22) — "완료라 선언했는데 실제 반영 안 됨" 사고 규명용
+      const mergedForDebug = response.spec
+        ? (activeSession.specContent ? mergeSpec(activeSession.specContent, response.spec) : response.spec)
+        : activeSession.specContent;
+      recordSpecEvent({
+        trigger: "handleSpecUpdate",
+        sessionId: activeSessionId,
+        rawStream: rawStreamRef.current,
+        responseSpec: response.spec,
+        existingSpec: activeSession.specContent,
+        mergedSpec: mergedForDebug,
+      });
+
       if (response.spec) {
         if (!activeSession.specContent) {
           setSpecContent(response.spec);
@@ -370,7 +412,7 @@ const Index = () => {
 
         setMessages((prev) => [
           ...prev,
-          { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 문서 업데이트 완료" },
+          { id: (Date.now() + 2).toString(), role: "system" as const, content: SPEC_UPDATE_NOTICE },
         ]);
 
         toast.success("Spec 문서가 업데이트되었습니다");
@@ -582,12 +624,14 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
       );
 
       // Spec 수정 결과 반영
+      // 참고: 일관성 검토는 1턴차에 <spec> 출력 금지 지시가 있지만 AI가 어기는 경우가 있음.
+      // 반영은 진행하되 유저에게 자동 수정 사실을 명시적으로 알림.
       if (response.spec) {
         const merged = mergeSpec(activeSession.specContent, response.spec);
         setSpecContent(merged);
         setMessages((prev) => [
           ...prev,
-          { id: (Date.now() + 2).toString(), role: "system" as const, content: "📝 Spec 일관성 수정 완료" },
+          { id: (Date.now() + 2).toString(), role: "system" as const, content: SPEC_UPDATE_NOTICE },
         ]);
       }
     } catch (err) {
@@ -659,7 +703,7 @@ Spec 내부에서 같은 정책·수치·규칙이 여러 섹션에 다르게 �
         ]);
         setMessages((prev) => [
           ...prev,
-          { id: (Date.now() + 2).toString(), role: "system" as const, content: "🖥️ Prototype 업데이트됨" },
+          { id: (Date.now() + 2).toString(), role: "system" as const, content: HTML_UPDATE_NOTICE },
         ]);
       }
 
