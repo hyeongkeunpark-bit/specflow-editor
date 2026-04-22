@@ -825,6 +825,37 @@ async function legacyFallback(userText: string, env: ConfluenceEnv): Promise<str
   }
 }
 
+// ── 유저 친화적 에러 메시지 변환 ──
+// Anthropic API 에러를 유저에게 보여줄 한국어 메시지로 번역.
+// 특히 크레딧 고갈은 "토큰 비용 소진" 으로 명확히 안내.
+function friendlyErrorMessage(err: any): string {
+  const raw = typeof err?.message === "string" ? err.message : String(err);
+  const lower = raw.toLowerCase();
+
+  // 크레딧 고갈 / 결제 이슈
+  if (
+    lower.includes("credit balance") ||
+    lower.includes("insufficient_credit") ||
+    lower.includes("credit_balance_too_low") ||
+    err?.status === 402
+  ) {
+    return "토큰 비용이 소진되었습니다. 관리자에게 문의해 주세요.";
+  }
+
+  // 인증 실패 (잘못된 API 키)
+  if (err?.status === 401 || lower.includes("authentication")) {
+    return "인증에 실패했습니다. 관리자에게 문의해 주세요.";
+  }
+
+  // 권한 부족
+  if (err?.status === 403 || lower.includes("permission")) {
+    return "API 접근 권한이 없습니다. 관리자에게 문의해 주세요.";
+  }
+
+  // 나머지는 원본 메시지 유지 (rate limit, overloaded, timeout 등)
+  return raw;
+}
+
 // ── Ennoia API (레거시, 유지) ──
 
 app.post("/api/chat", async (req, res) => {
@@ -859,8 +890,8 @@ app.post("/api/chat", async (req, res) => {
     console.log(`[api/chat] Response: ${text.length} chars | input: ${u?.input_tokens} (cache write: ${u?.cache_creation_input_tokens ?? 0}, read: ${u?.cache_read_input_tokens ?? 0}) output: ${u?.output_tokens}`);
     return res.status(200).json({ text });
   } catch (error: any) {
-    console.error("[api/chat] Error:", error.message);
-    return res.status(500).json({ error: error.message });
+    console.error("[api/chat] Error:", error.message, "status:", error.status);
+    return res.status(500).json({ error: friendlyErrorMessage(error) });
   }
 });
 
@@ -970,9 +1001,9 @@ app.post("/api/chat/stream", async (req, res) => {
       res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
     });
 
-    stream.on("error", (error) => {
-      console.error("[api/chat/stream] Stream error:", error.message);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    stream.on("error", (error: any) => {
+      console.error("[api/chat/stream] Stream error:", error.message, "status:", error.status);
+      res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage(error) })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
     });
@@ -1005,8 +1036,8 @@ app.post("/api/chat/stream", async (req, res) => {
       res.end();
     });
   } catch (error: any) {
-    console.error("[api/chat/stream] Error:", error.message);
-    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    console.error("[api/chat/stream] Error:", error.message, "status:", error.status);
+    res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage(error) })}\n\n`);
     res.write("data: [DONE]\n\n");
     res.end();
   }
@@ -1073,9 +1104,9 @@ app.post("/api/chat/fix-errors", async (req, res) => {
       res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
     });
 
-    stream.on("error", (error) => {
-      console.error("[api/chat/fix-errors] Stream error:", error.message);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    stream.on("error", (error: any) => {
+      console.error("[api/chat/fix-errors] Stream error:", error.message, "status:", error.status);
+      res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage(error) })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
     });
@@ -1104,8 +1135,8 @@ app.post("/api/chat/fix-errors", async (req, res) => {
       res.end();
     });
   } catch (error: any) {
-    console.error("[api/chat/fix-errors] Error:", error.message);
-    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    console.error("[api/chat/fix-errors] Error:", error.message, "status:", error.status);
+    res.write(`data: ${JSON.stringify({ error: friendlyErrorMessage(error) })}\n\n`);
     res.write("data: [DONE]\n\n");
     res.end();
   }
