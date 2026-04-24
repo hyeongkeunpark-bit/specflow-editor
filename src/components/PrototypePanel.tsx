@@ -220,7 +220,7 @@ const PrototypePanel = ({
               </button>
             </>
           )}
-          {htmlContent && onAddRemoteControl && (
+          {false && htmlContent && onAddRemoteControl && (
             <button
               onClick={onAddRemoteControl}
               disabled={isLoading}
